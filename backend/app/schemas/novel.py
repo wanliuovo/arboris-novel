@@ -134,6 +134,7 @@ class NovelSectionResponse(BaseModel):
 class GenerateChapterRequest(BaseModel):
     chapter_number: int
     writing_notes: Optional[str] = Field(default=None, description="章节额外写作指令")
+    max_chars: Optional[int] = Field(default=None, ge=1, le=2500, description="章节正文最大字数")
 
 
 class FlowConfig(BaseModel):

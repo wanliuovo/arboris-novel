@@ -201,7 +201,7 @@
                     <button
                       v-if="canGenerateChapter(chapter.chapter_number) || isChapterFailed(chapter.chapter_number) || hasChapterInProgress(chapter.chapter_number)"
                       @click.stop="confirmGenerateChapter(chapter.chapter_number)"
-                      :disabled="generatingChapter === chapter.chapter_number || isChapterGenerating(chapter.chapter_number)"
+                      :disabled="props.isAutoGenerating || generatingChapter === chapter.chapter_number || isChapterGenerating(chapter.chapter_number)"
                       class="md-icon-btn md-ripple disabled:opacity-50"
                       style="color: var(--md-primary);"
                       :title="isChapterCompleted(chapter.chapter_number) ? '重新生成' : isChapterFailed(chapter.chapter_number) ? '重试' : hasChapterInProgress(chapter.chapter_number) ? '重新生成版本' : '开始创作'"
@@ -238,8 +238,26 @@
             </div>
             <div class="mt-4">
               <button
+                @click="$emit('autoGenerateChapters')"
+                :disabled="props.isAutoGenerating || props.isGeneratingOutline || !hasIncompleteChapters"
+                class="md-btn md-btn-filled md-ripple w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg v-if="props.isAutoGenerating" class="w-5 h-5 animate-spin" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+                </svg>
+                <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clip-rule="evenodd"></path>
+                </svg>
+                <span>{{ props.isAutoGenerating ? `自动生成中 ${props.autoGenerateStatus.processed}/${props.autoGenerateStatus.total}` : '自动生成章节' }}</span>
+              </button>
+              <div v-if="props.isAutoGenerating" class="md-body-small md-on-surface-variant mt-2 text-center">
+                第{{ props.autoGenerateStatus.currentChapter || '-' }}章 · 成功 {{ props.autoGenerateStatus.succeeded }} · 跳过 {{ props.autoGenerateStatus.failed }}
+              </div>
+            </div>
+            <div class="mt-4">
+              <button
                 @click="$emit('generateOutline')"
-                :disabled="props.isGeneratingOutline"
+                :disabled="props.isGeneratingOutline || props.isAutoGenerating"
                 class="md-btn md-btn-tonal md-ripple w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg v-if="props.isGeneratingOutline" class="w-5 h-5 animate-spin" fill="currentColor" viewBox="0 0 20 20">
@@ -272,11 +290,19 @@ interface Props {
   generatingChapter: number | null
   evaluatingChapter: number | null
   isGeneratingOutline: boolean
+  isAutoGenerating: boolean
+  autoGenerateStatus: {
+    currentChapter: number | null
+    processed: number
+    total: number
+    succeeded: number
+    failed: number
+  }
 }
 
 const props = defineProps<Props>()
 
-const emit = defineEmits(['closeSidebar', 'selectChapter', 'generateChapter', 'editChapter', 'deleteChapter', 'generateOutline'])
+const emit = defineEmits(['closeSidebar', 'selectChapter', 'generateChapter', 'editChapter', 'deleteChapter', 'generateOutline', 'autoGenerateChapters'])
 
 const selectedForDeletion = ref<number[]>([])
 const listContainer = ref<HTMLElement | null>(null)
@@ -339,6 +365,7 @@ function handleDeleteSelected() {
 }
 
 async function confirmGenerateChapter(chapterNumber: number) {
+  if (props.isAutoGenerating) return
   const confirmed = await globalAlert.showConfirm('重新生成会覆盖当前章节的生成结果，确定继续吗？', '重新生成确认')
   if (confirmed) {
     emit('generateChapter', chapterNumber)

@@ -1,7 +1,7 @@
 // AIMETA P=小说状态_当前小说数据管理|R=currentNovel_chapters_fetch|NR=不含API调用|E=store:novel|X=internal|A=useNovelStore|D=pinia|S=none|RD=./README.ai
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { NovelProject, NovelProjectSummary, ConverseResponse, BlueprintGenerationResponse, Blueprint, DeleteNovelsResponse, ChapterOutline } from '@/api/novel'
+import type { NovelProject, NovelProjectSummary, ConverseResponse, BlueprintGenerationResponse, Blueprint, DeleteNovelsResponse, ChapterOutline, GenerateChapterOptions } from '@/api/novel'
 import { NovelAPI } from '@/api/novel'
 
 export const useNovelStore = defineStore('novel', () => {
@@ -145,14 +145,14 @@ export const useNovelStore = defineStore('novel', () => {
     }
   }
 
-  async function generateChapter(chapterNumber: number): Promise<NovelProject> {
+  async function generateChapter(chapterNumber: number, options: GenerateChapterOptions = {}): Promise<NovelProject> {
     // 注意：这里不设置全局 isLoading，因为 WritingDesk.vue 有自己的局部加载状态
     error.value = null
     try {
       if (!currentProject.value) {
         throw new Error('没有当前项目')
       }
-      const updatedProject = await NovelAPI.generateChapter(currentProject.value.id, chapterNumber)
+      const updatedProject = await NovelAPI.generateChapter(currentProject.value.id, chapterNumber, options)
       currentProject.value = updatedProject // 更新 store 中的当前项目
       return updatedProject
     } catch (err) {

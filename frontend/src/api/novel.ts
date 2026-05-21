@@ -137,6 +137,11 @@ export interface ChapterGenerationResponse {
   chapter_number: number
 }
 
+export interface GenerateChapterOptions {
+  writingNotes?: string
+  maxChars?: number
+}
+
 export interface DeleteNovelsResponse {
   status: string
   message: string
@@ -221,10 +226,14 @@ export class NovelAPI {
     })
   }
 
-  static async generateChapter(projectId: string, chapterNumber: number): Promise<NovelProject> {
+  static async generateChapter(projectId: string, chapterNumber: number, options: GenerateChapterOptions = {}): Promise<NovelProject> {
     return request(`${WRITER_BASE}/${projectId}/chapters/generate`, {
       method: 'POST',
-      body: JSON.stringify({ chapter_number: chapterNumber })
+      body: JSON.stringify({
+        chapter_number: chapterNumber,
+        writing_notes: options.writingNotes,
+        max_chars: options.maxChars
+      })
     })
   }
 

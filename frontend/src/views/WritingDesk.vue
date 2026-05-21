@@ -44,12 +44,15 @@
           :generating-chapter="generatingChapter"
           :evaluating-chapter="evaluatingChapter"
           :is-generating-outline="isGeneratingOutline"
+          :is-auto-generating="isAutoGenerating"
+          :auto-generate-status="autoGenerateStatus"
           @close-sidebar="closeSidebar"
           @select-chapter="selectChapter"
           @generate-chapter="generateChapter"
           @edit-chapter="openEditChapterModal"
           @delete-chapter="deleteChapter"
           @generate-outline="generateOutline"
+          @auto-generate-chapters="openAutoGenerateModal"
         />
 
         <div class="flex-1 min-w-0">
@@ -101,6 +104,13 @@
       @close="showGenerateOutlineModal = false"
       @generate="handleGenerateOutline"
     />
+    <WDAutoGenerateModal
+      :show="showAutoGenerateModal"
+      :max-chapters="autoGenerateAvailableCount"
+      :start-chapter="autoGenerateStartChapter"
+      @close="showAutoGenerateModal = false"
+      @generate="autoGenerateChapters"
+    />
   </div>
 </template>
 
@@ -118,6 +128,7 @@ import WDVersionDetailModal from '@/components/writing-desk/WDVersionDetailModal
 import WDEvaluationDetailModal from '@/components/writing-desk/WDEvaluationDetailModal.vue'
 import WDEditChapterModal from '@/components/writing-desk/WDEditChapterModal.vue'
 import WDGenerateOutlineModal from '@/components/writing-desk/WDGenerateOutlineModal.vue'
+import WDAutoGenerateModal from '@/components/writing-desk/WDAutoGenerateModal.vue'
 
 interface Props {
   id: string
@@ -140,6 +151,15 @@ const showEditChapterModal = ref(false)
 const editingChapter = ref<ChapterOutline | null>(null)
 const isGeneratingOutline = ref(false)
 const showGenerateOutlineModal = ref(false)
+const isAutoGenerating = ref(false)
+const showAutoGenerateModal = ref(false)
+const autoGenerateStatus = ref({
+  currentChapter: null as number | null,
+  processed: 0,
+  total: 0,
+  succeeded: 0,
+  failed: 0
+})
 
 // 计算属性
 const project = computed(() => novelStore.currentProject)
@@ -185,6 +205,12 @@ const totalChapters = computed(() => {
 const completedChapters = computed(() => {
   return project.value?.chapters?.filter(ch => ch.content)?.length || 0
 })
+
+const autoGeneratePreviewTargets = computed(() => getAutoGenerationTargets(50))
+
+const autoGenerateAvailableCount = computed(() => autoGeneratePreviewTargets.value.length)
+
+const autoGenerateStartChapter = computed(() => autoGeneratePreviewTargets.value[0] || null)
 
 const isCurrentVersion = (versionIndex: number) => {
   if (!selectedChapter.value?.content || !availableVersions.value?.[versionIndex]?.content) return false
@@ -447,6 +473,124 @@ const generateChapter = async (chapterNumber: number) => {
     globalAlert.showError(`生成章节失败: ${error instanceof Error ? error.message : '未知错误'}`, '生成失败')
   } finally {
     generatingChapter.value = null
+  }
+}
+
+const isChapterCompleted = (chapterNumber: number) => {
+  if (!project.value?.chapters) return false
+  const chapter = project.value.chapters.find(ch => ch.chapter_number === chapterNumber)
+  return chapter?.generation_status === 'successful'
+}
+
+const updateLocalChapterStatus = (chapterNumber: number, status: Chapter['generation_status']) => {
+  if (!project.value?.chapters) return
+  const chapter = project.value.chapters.find(ch => ch.chapter_number === chapterNumber)
+  if (chapter) {
+    chapter.generation_status = status
+    return
+  }
+  const outline = project.value.blueprint?.chapter_outline?.find(o => o.chapter_number === chapterNumber)
+  project.value.chapters.push({
+    chapter_number: chapterNumber,
+    title: outline?.title || `第${chapterNumber}章`,
+    summary: outline?.summary || '',
+    content: '',
+    versions: [],
+    evaluation: null,
+    generation_status: status
+  } as Chapter)
+}
+
+const getAutoGenerationTargets = (count: number = 50) => {
+  const outlines = [...(project.value?.blueprint?.chapter_outline || [])].sort((a, b) => a.chapter_number - b.chapter_number)
+  if (!outlines.length) return []
+
+  const selectedStart = selectedChapterNumber.value
+  const startNumber = selectedStart ?? outlines.find(outline => !isChapterCompleted(outline.chapter_number))?.chapter_number
+  if (!startNumber) return []
+
+  let targets = outlines
+    .filter(outline => outline.chapter_number >= startNumber)
+    .filter(outline => !isChapterCompleted(outline.chapter_number))
+    .slice(0, Math.min(Math.max(count, 1), 50))
+
+  if (!targets.length && selectedStart) {
+    targets = outlines
+      .filter(outline => !isChapterCompleted(outline.chapter_number))
+      .slice(0, Math.min(Math.max(count, 1), 50))
+  }
+
+  return targets.map(outline => outline.chapter_number)
+}
+
+const openAutoGenerateModal = () => {
+  if (isAutoGenerating.value) return
+  if (!autoGenerateAvailableCount.value) {
+    globalAlert.showSuccess('没有需要生成的章节', '自动生成')
+    return
+  }
+  showAutoGenerateModal.value = true
+}
+
+const autoGenerateChapters = async (count: number) => {
+  if (isAutoGenerating.value || !project.value) return
+
+  const targets = getAutoGenerationTargets(count)
+  if (!targets.length) {
+    globalAlert.showSuccess('没有需要生成的章节', '自动生成')
+    return
+  }
+
+  isAutoGenerating.value = true
+  autoGenerateStatus.value = {
+    currentChapter: null,
+    processed: 0,
+    total: targets.length,
+    succeeded: 0,
+    failed: 0
+  }
+
+  for (const chapterNumber of targets) {
+    autoGenerateStatus.value.currentChapter = chapterNumber
+    selectedChapterNumber.value = chapterNumber
+    generatingChapter.value = chapterNumber
+    updateLocalChapterStatus(chapterNumber, 'generating')
+
+    try {
+      await novelStore.generateChapter(chapterNumber, {
+        maxChars: 2500,
+        writingNotes: '自动批量生成：本章正文控制在2500字以内，保持与上一章衔接，直接输出正文。'
+      })
+
+      updateLocalChapterStatus(chapterNumber, 'selecting')
+      await novelStore.selectChapterVersion(chapterNumber, 0)
+      autoGenerateStatus.value.succeeded += 1
+    } catch (error) {
+      console.error(`自动生成第 ${chapterNumber} 章失败，已跳过:`, error)
+      updateLocalChapterStatus(chapterNumber, 'failed')
+      autoGenerateStatus.value.failed += 1
+    } finally {
+      autoGenerateStatus.value.processed += 1
+      generatingChapter.value = null
+      chapterGenerationResult.value = null
+      selectedVersionIndex.value = 0
+    }
+  }
+
+  try {
+    await novelStore.loadProject(props.id, true)
+  } catch (error) {
+    console.error('自动生成后刷新项目失败:', error)
+  }
+
+  isAutoGenerating.value = false
+  autoGenerateStatus.value.currentChapter = null
+
+  const message = `完成 ${autoGenerateStatus.value.processed} 章，成功 ${autoGenerateStatus.value.succeeded} 章，跳过 ${autoGenerateStatus.value.failed} 章`
+  if (autoGenerateStatus.value.failed > 0) {
+    globalAlert.showError(message, '自动生成完成')
+  } else {
+    globalAlert.showSuccess(message, '自动生成完成')
   }
 }
 

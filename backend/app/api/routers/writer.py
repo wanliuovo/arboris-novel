@@ -76,6 +76,14 @@ def _extract_tail_excerpt(text: Optional[str], limit: int = 500) -> str:
     return stripped[-limit:]
 
 
+def _limit_chapter_content(text: str, max_chars: Optional[int]) -> str:
+    """将章节正文限制在指定字数内，主要用于批量自动生成。"""
+    cleaned = (text or "").strip()
+    if not max_chars or max_chars <= 0 or len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[:max_chars].rstrip()
+
+
 async def _resolve_version_count(session: AsyncSession) -> int:
     """
     解析章节版本数量配置，优先级：
@@ -526,6 +534,12 @@ async def generate_chapter(
     outline_title = outline.title or f"第{outline.chapter_number}章"
     outline_summary = outline.summary or "暂无摘要"
     writing_notes = request.writing_notes or "无额外写作指令"
+    if request.max_chars:
+        writing_notes = (
+            f"{writing_notes}\n\n"
+            f"【硬性长度限制】本章正文最多 {request.max_chars} 字。"
+            "请直接输出正文，不要输出说明、标题或额外解释。"
+        )
 
     # 提取所有角色名
     all_characters = [c.get("name") for c in blueprint_dict.get("characters", []) if c.get("name")]
@@ -711,11 +725,13 @@ async def generate_chapter(
             except Exception:
                 parsed_json = None
 
+            limited_content = _limit_chapter_content(extracted_text or final_content, request.max_chars)
             return {
-                "content": extracted_text or final_content,
+                "content": limited_content,
                 "parsed_json": parsed_json,
                 "guardrail": guardrail_metadata,
                 "chapter_mission": chapter_mission,
+                "max_chars": request.max_chars,
             }
         except HTTPException:
             raise
