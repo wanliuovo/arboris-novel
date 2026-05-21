@@ -9,6 +9,49 @@ def remove_think_tags(raw_text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", raw_text, flags=re.DOTALL).strip()
 
 
+def _extract_first_balanced_json(raw_text: str) -> str | None:
+    """提取文本中的第一个完整 JSON 对象或数组。"""
+    if not raw_text:
+        return None
+
+    pairs = {"{": "}", "[": "]"}
+    opening_chars = set(pairs)
+    closing_chars = set(pairs.values())
+
+    for start_idx, start_ch in enumerate(raw_text):
+        if start_ch not in opening_chars:
+            continue
+
+        stack = [pairs[start_ch]]
+        in_string = False
+        escape_next = False
+
+        for idx in range(start_idx + 1, len(raw_text)):
+            ch = raw_text[idx]
+
+            if in_string:
+                if escape_next:
+                    escape_next = False
+                elif ch == "\\":
+                    escape_next = True
+                elif ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+            elif ch in opening_chars:
+                stack.append(pairs[ch])
+            elif ch in closing_chars:
+                if not stack or ch != stack[-1]:
+                    break
+                stack.pop()
+                if not stack:
+                    return raw_text[start_idx : idx + 1].strip()
+
+    return None
+
+
 def unwrap_markdown_json(raw_text: str) -> str:
     """从 Markdown 或普通文本中提取 JSON 字符串。"""
     if not raw_text:
@@ -20,18 +63,11 @@ def unwrap_markdown_json(raw_text: str) -> str:
     if fence_match:
         candidate = fence_match.group(1).strip()
         if candidate:
-            return candidate
+            return _extract_first_balanced_json(candidate) or candidate
 
-    json_start_candidates = [idx for idx in (trimmed.find("{"), trimmed.find("[")) if idx != -1]
-    if json_start_candidates:
-        start_idx = min(json_start_candidates)
-        closing_brace = trimmed.rfind("}")
-        closing_bracket = trimmed.rfind("]")
-        end_idx = max(closing_brace, closing_bracket)
-        if end_idx != -1 and end_idx > start_idx:
-            candidate = trimmed[start_idx : end_idx + 1].strip()
-            if candidate:
-                return candidate
+    balanced_candidate = _extract_first_balanced_json(trimmed)
+    if balanced_candidate:
+        return balanced_candidate
 
     return trimmed
 
