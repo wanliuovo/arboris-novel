@@ -1,23 +1,23 @@
 <!-- AIMETA P=工作区入口_应用主入口|R=入口导航|NR=不含具体功能|E=route:/#component:WorkspaceEntry|X=ui|A=入口页|D=vue|S=dom|RD=./README.ai -->
 <template>
-  <div class="flex items-center justify-center min-h-screen p-4 relative md-surface-dim">
+  <div class="flex items-center justify-center min-h-screen p-3 sm:p-4 pt-20 sm:pt-4 relative md-surface-dim">
     <!-- Material 3 Update Log Modal -->
     <div v-if="showModal" class="md-dialog-overlay" @click.self="closeModal">
-      <div class="md-dialog w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+      <div class="md-dialog w-full max-w-4xl mx-2 sm:mx-4 max-h-[90dvh] flex flex-col">
         <!-- Header -->
         <div class="md-dialog-header border-b" style="border-color: var(--md-outline-variant);">
           <h1 class="md-headline-medium text-center" style="color: var(--md-on-surface);">更新日志</h1>
         </div>
         
         <!-- Community Section -->
-        <div v-if="communityLog" class="px-6 pt-6">
+        <div v-if="communityLog" class="px-4 sm:px-6 pt-4 sm:pt-6">
           <div class="p-4 rounded-lg" style="background-color: var(--md-primary-container);">
             <div class="prose max-w-none prose-sm" style="color: var(--md-on-primary-container);" v-html="renderMarkdown(communityLog.content)"></div>
           </div>
         </div>
 
         <!-- Timeline Content -->
-        <div class="px-6 py-6 overflow-y-auto flex-1">
+        <div class="px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1">
           <div class="flow-root">
             <ul role="list" class="-mb-8">
               <li v-for="(log, index) in filteredUpdateLogs" :key="log.id">
@@ -64,7 +64,7 @@
     </div>
 
     <!-- Top Right Actions -->
-    <div class="absolute top-4 right-4 flex space-x-2">
+    <div class="absolute top-3 right-3 flex flex-wrap justify-end gap-2">
       <router-link
         to="/settings"
         class="md-btn md-btn-text md-ripple"
@@ -88,12 +88,12 @@
 
     <!-- Main Content -->
     <div class="w-full max-w-4xl mx-auto">
-      <div class="text-center p-8 fade-in">
+      <div class="text-center p-3 sm:p-8 fade-in">
         <!-- Title -->
         <h1 class="md-display-small mb-4" style="color: var(--md-on-surface);">
           拯救小说家：创作中心
         </h1>
-        <p class="md-body-large mb-12" style="color: var(--md-on-surface-variant);">
+        <p class="md-body-large mb-8 sm:mb-12" style="color: var(--md-on-surface-variant);">
           从一个新灵感开始，或继续打磨你的世界。
         </p>
 
@@ -102,7 +102,7 @@
           <!-- Inspiration Mode Card -->
           <div
             @click="goToInspiration"
-            class="md-card md-card-elevated group p-8 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+            class="md-card md-card-elevated group p-5 sm:p-8 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
             style="border-radius: var(--md-radius-xl);"
           >
             <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background-color: var(--md-primary-container);">
@@ -119,7 +119,7 @@
           <!-- Novel Workspace Card -->
           <div
             @click="goToWorkspace"
-            class="md-card md-card-elevated group p-8 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
+            class="md-card md-card-elevated group p-5 sm:p-8 cursor-pointer transition-all duration-300 hover:scale-[1.02]"
             style="border-radius: var(--md-radius-xl);"
           >
             <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background-color: var(--md-success-container);">

@@ -1,10 +1,10 @@
 <!-- AIMETA P=灵感模式_AI对话创作|R=对话创作界面|NR=不含写作台功能|E=route:/inspiration#component:InspirationMode|X=ui|A=对话界面|D=vue|S=dom,net|RD=./README.ai -->
 <template>
-  <div class="flex items-center justify-center min-h-screen p-4">
+  <div class="flex items-center justify-center min-h-[100dvh] p-3 sm:p-4">
     <div class="w-full max-w-6xl mx-auto">
       <!-- 灵感模式入口界面 -->
-      <div v-if="!conversationStarted" class="text-center p-8 bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg fade-in">
-        <h1 class="text-4xl md:text-5xl font-bold text-gray-800">小说家的新篇章</h1>
+      <div v-if="!conversationStarted" class="text-center p-5 sm:p-8 bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg fade-in">
+        <h1 class="text-3xl md:text-5xl font-bold text-gray-800">小说家的新篇章</h1>
         <p class="text-lg text-gray-600 mt-4 mb-8">
           准备好释放你的创造力了吗？让AI引导你，一步步构建出独一无二的故事世界。
         </p>
@@ -26,19 +26,19 @@
       <!-- 灵感模式交互界面 -->
       <div
         v-else-if="!showBlueprintConfirmation && !showBlueprint"
-        class="h-[90vh] max-h-[950px] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden fade-in"
+        class="h-[calc(100dvh-1.5rem)] sm:h-[90vh] max-h-[950px] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden fade-in"
       >
         <!-- 头部 -->
         <div class="p-4 border-b border-gray-200">
-          <div class="flex justify-between items-center">
-            <div class="flex items-center gap-2">
+          <div class="flex justify-between items-center gap-3">
+            <div class="flex items-center gap-2 min-w-0">
               <span class="relative flex h-3 w-3">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
               </span>
               <span class="text-sm font-medium text-indigo-600">与“文思”对话中...</span>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
               <span v-if="currentTurn > 0" class="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
                 第 {{ currentTurn }} 轮
               </span>
@@ -72,7 +72,7 @@
         </div>
 
         <!-- 聊天区域 -->
-        <div class="flex-1 p-6 overflow-y-auto space-y-6 relative" ref="chatArea">
+        <div class="flex-1 p-3 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6 relative" ref="chatArea">
           <transition name="fade">
             <InspirationLoading v-if="isInitialLoading" />
           </transition>

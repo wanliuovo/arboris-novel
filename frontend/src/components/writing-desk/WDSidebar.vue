@@ -11,17 +11,17 @@
     <!-- 左侧：蓝图和章节列表 -->
     <div
       :class="[
-        'md-card md-card-elevated transition-all duration-300 h-full',
+        'md-card md-card-elevated transition-all duration-300 h-full max-h-full',
         'lg:relative lg:translate-x-0 lg:w-80 lg:flex-shrink-0',
         sidebarOpen
-          ? 'fixed left-4 top-20 bottom-4 w-80 z-50 translate-x-0'
+          ? 'fixed left-3 right-3 top-[4.75rem] bottom-3 z-50 translate-x-0 sm:left-4 sm:right-auto sm:top-20 sm:bottom-4 sm:w-80'
           : 'lg:w-80 lg:flex-shrink-0 -translate-x-full absolute lg:relative'
       ]"
       style="border-radius: var(--md-radius-xl);"
     >
       <div class="h-full flex flex-col">
         <!-- 蓝图预览卡片 -->
-        <div class="md-card-header flex-shrink-0">
+        <div class="md-card-header flex-shrink-0 p-4 sm:p-6">
           <div class="flex items-center gap-3 mb-4">
             <div class="w-10 h-10 rounded-full flex items-center justify-center" style="background-color: var(--md-primary-container);">
               <svg class="w-5 h-5" style="color: var(--md-on-primary-container);" fill="currentColor" viewBox="0 0 20 20">
@@ -56,10 +56,10 @@
 
         <!-- 章节列表 -->
         <div ref="listContainer" class="flex-1 overflow-y-auto">
-          <div class="p-6 pb-4">
-            <div class="flex items-center justify-between mb-4">
+          <div class="p-4 sm:p-6 pb-3 sm:pb-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <h3 class="md-title-medium font-semibold">章节大纲</h3>
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
                 <button
                   v-if="hasIncompleteChapters"
                   @click.stop="scrollToFirstIncompleteChapter"
@@ -74,7 +74,7 @@
             </div>
           </div>
 
-          <div class="px-6 pb-6">
+          <div class="px-4 sm:px-6 pb-5 sm:pb-6">
             <div v-if="project.blueprint?.chapter_outline?.length" class="space-y-3">
               <div
                 v-for="(chapter, index) in project.blueprint.chapter_outline"
@@ -186,7 +186,7 @@
                   </div>
 
                   <!-- 章节操作按钮 -->
-                  <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div class="flex items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       v-if="!isChapterCompleted(chapter.chapter_number)"
                       @click.stop="$emit('editChapter', chapter)"

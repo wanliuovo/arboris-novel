@@ -1,6 +1,6 @@
 <!-- AIMETA P=小说工作区_小说列表管理|R=小说列表_创建|NR=不含章节编辑|E=route:/workspace#component:NovelWorkspace|X=ui|A=工作区|D=vue|S=dom,net|RD=./README.ai -->
 <template>
-  <div class="flex items-center justify-center min-h-screen p-4 md-surface-dim">
+  <div class="flex items-center justify-center min-h-screen p-3 sm:p-4 md-surface-dim">
     <!-- Material 3 Snackbar for delete message -->
     <transition
       enter-active-class="transition-all duration-300"
@@ -36,10 +36,10 @@
     </transition>
     
     <div class="w-full max-w-7xl mx-auto">
-      <div class="md-card md-card-elevated p-8 fade-in" style="border-radius: var(--md-radius-xl);">
+      <div class="md-card md-card-elevated p-4 sm:p-8 fade-in" style="border-radius: var(--md-radius-xl);">
         <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-          <div class="flex items-center gap-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
+          <div class="flex flex-wrap items-center gap-3 sm:gap-4 min-w-0">
             <h2 class="md-headline-medium" style="color: var(--md-on-surface);">我的小说项目</h2>
             <router-link 
               v-if="authStore.user?.is_admin" 
@@ -55,7 +55,7 @@
           </div>
           <button
             @click="goBack"
-            class="md-btn md-btn-text md-ripple"
+            class="md-btn md-btn-text md-ripple self-start sm:self-auto"
           >
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />

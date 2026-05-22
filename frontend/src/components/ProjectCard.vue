@@ -26,8 +26,8 @@
             />
           </svg>
         </div>
-        <div class="flex-1 cursor-pointer" @click="$emit('detail', project.id)">
-          <h3 class="md-title-medium hover:opacity-80 transition-opacity" style="color: var(--md-on-surface);">
+        <div class="flex-1 min-w-0 cursor-pointer" @click="$emit('detail', project.id)">
+          <h3 class="md-title-medium hover:opacity-80 transition-opacity truncate" style="color: var(--md-on-surface);">
             {{ project.title }}
           </h3>
           <p class="md-body-small" style="color: var(--md-on-surface-variant);">
@@ -75,7 +75,7 @@
     </div>
 
     <!-- Action Buttons -->
-    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+    <div class="flex gap-2 opacity-100 translate-y-0 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 transform sm:translate-y-2 sm:group-hover:translate-y-0">
       <button
         @click.stop="$emit('detail', project.id)"
         class="md-btn md-btn-tonal md-ripple flex-1"

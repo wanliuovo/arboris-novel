@@ -142,6 +142,39 @@ export interface GenerateChapterOptions {
   maxChars?: number
 }
 
+export interface AutoGenerateChaptersRequest {
+  startChapter: number
+  numChapters: number
+  maxChars?: number
+  writingNotes?: string
+}
+
+export interface AutoGenerateChaptersStartResponse {
+  job_id: string
+  status: string
+  total: number
+  message: string
+}
+
+export interface AutoGenerateChapterFailure {
+  chapter_number: number
+  error: string
+}
+
+export interface AutoGenerateChaptersStatusResponse {
+  job_id: string | null
+  project_id: string | null
+  status: 'idle' | 'pending' | 'running' | 'completed' | 'failed'
+  current_chapter: number | null
+  total: number
+  processed: number
+  succeeded: number
+  failed: number
+  chapters: number[]
+  failed_chapters: AutoGenerateChapterFailure[]
+  message?: string | null
+}
+
 export interface DeleteNovelsResponse {
   status: string
   message: string
@@ -235,6 +268,29 @@ export class NovelAPI {
         max_chars: options.maxChars
       })
     })
+  }
+
+  static async startAutoGenerateChapters(
+    projectId: string,
+    payload: AutoGenerateChaptersRequest
+  ): Promise<AutoGenerateChaptersStartResponse> {
+    return request(`${WRITER_BASE}/${projectId}/chapters/auto-generate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        start_chapter: payload.startChapter,
+        num_chapters: payload.numChapters,
+        max_chars: payload.maxChars,
+        writing_notes: payload.writingNotes
+      })
+    })
+  }
+
+  static async getAutoGenerateChaptersStatus(
+    projectId: string,
+    jobId?: string | null
+  ): Promise<AutoGenerateChaptersStatusResponse> {
+    const query = jobId ? `?job_id=${encodeURIComponent(jobId)}` : ''
+    return request(`${WRITER_BASE}/${projectId}/chapters/auto-generate/status${query}`)
   }
 
   static async evaluateChapter(projectId: string, chapterNumber: number): Promise<NovelProject> {

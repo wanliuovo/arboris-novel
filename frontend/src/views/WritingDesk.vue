@@ -1,6 +1,6 @@
 <!-- AIMETA P=写作台_章节编辑主页面|R=写作界面_章节管理|NR=不含详情展示|E=route:/novel/:id#component:WritingDesk|X=ui|A=写作台|D=vue|S=dom,net|RD=./README.ai -->
 <template>
-  <div class="m3-shell h-screen flex flex-col overflow-hidden">
+  <div class="m3-shell h-[100dvh] flex flex-col overflow-hidden">
     <WDHeader
       :project="project"
       :progress="progress"
@@ -12,7 +12,7 @@
     />
 
     <!-- 主要内容区域 -->
-    <div class="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 overflow-hidden">
+    <div class="flex-1 min-h-0 w-full px-3 sm:px-6 lg:px-8 py-3 sm:py-4 lg:py-6 overflow-hidden">
       <!-- 加载状态 -->
       <div v-if="novelStore.isLoading" class="h-full flex justify-center items-center">
         <div class="text-center">
@@ -36,7 +36,7 @@
       </div>
 
       <!-- 主要内容 -->
-      <div v-else-if="project" class="h-full flex gap-6">
+      <div v-else-if="project" class="h-full min-h-0 flex gap-3 lg:gap-6">
         <WDSidebar
           :project="project"
           :sidebar-open="sidebarOpen"
@@ -55,7 +55,7 @@
           @auto-generate-chapters="openAutoGenerateModal"
         />
 
-        <div class="flex-1 min-w-0">
+        <div class="flex-1 min-w-0 h-full">
           <WDWorkspace
             :project="project"
             :selected-chapter-number="selectedChapterNumber"
@@ -118,7 +118,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNovelStore } from '@/stores/novel'
-import type { Chapter, ChapterOutline, ChapterGenerationResponse, ChapterVersion } from '@/api/novel'
+import type { AutoGenerateChaptersStatusResponse, Chapter, ChapterOutline, ChapterGenerationResponse, ChapterVersion } from '@/api/novel'
 import { globalAlert } from '@/composables/useAlert'
 import Tooltip from '@/components/Tooltip.vue'
 import WDHeader from '@/components/writing-desk/WDHeader.vue'
@@ -153,6 +153,9 @@ const isGeneratingOutline = ref(false)
 const showGenerateOutlineModal = ref(false)
 const isAutoGenerating = ref(false)
 const showAutoGenerateModal = ref(false)
+const autoGenerateJobId = ref<string | null>(null)
+const autoGeneratePollingTimer = ref<number | null>(null)
+const notifiedAutoGenerateJobs = ref<string[]>([])
 const autoGenerateStatus = ref({
   currentChapter: null as number | null,
   processed: 0,
@@ -482,25 +485,6 @@ const isChapterCompleted = (chapterNumber: number) => {
   return chapter?.generation_status === 'successful'
 }
 
-const updateLocalChapterStatus = (chapterNumber: number, status: Chapter['generation_status']) => {
-  if (!project.value?.chapters) return
-  const chapter = project.value.chapters.find(ch => ch.chapter_number === chapterNumber)
-  if (chapter) {
-    chapter.generation_status = status
-    return
-  }
-  const outline = project.value.blueprint?.chapter_outline?.find(o => o.chapter_number === chapterNumber)
-  project.value.chapters.push({
-    chapter_number: chapterNumber,
-    title: outline?.title || `第${chapterNumber}章`,
-    summary: outline?.summary || '',
-    content: '',
-    versions: [],
-    evaluation: null,
-    generation_status: status
-  } as Chapter)
-}
-
 const getAutoGenerationTargets = (count: number = 50) => {
   const outlines = [...(project.value?.blueprint?.chapter_outline || [])].sort((a, b) => a.chapter_number - b.chapter_number)
   if (!outlines.length) return []
@@ -523,6 +507,96 @@ const getAutoGenerationTargets = (count: number = 50) => {
   return targets.map(outline => outline.chapter_number)
 }
 
+const autoGenerateStorageKey = computed(() => `arboris:auto-generate:${props.id}`)
+
+const isAutoGenerateRunningStatus = (status: AutoGenerateChaptersStatusResponse) => {
+  return status.status === 'pending' || status.status === 'running'
+}
+
+const stopAutoGeneratePolling = () => {
+  if (autoGeneratePollingTimer.value) {
+    clearInterval(autoGeneratePollingTimer.value)
+    autoGeneratePollingTimer.value = null
+  }
+}
+
+const startAutoGeneratePolling = () => {
+  if (autoGeneratePollingTimer.value) return
+  autoGeneratePollingTimer.value = window.setInterval(() => {
+    pollAutoGenerateStatus(true)
+  }, 5000)
+}
+
+const applyAutoGenerateStatus = (status: AutoGenerateChaptersStatusResponse) => {
+  if (!status.job_id || status.status === 'idle') {
+    isAutoGenerating.value = false
+    generatingChapter.value = null
+    localStorage.removeItem(autoGenerateStorageKey.value)
+    return
+  }
+
+  autoGenerateJobId.value = status.job_id
+  localStorage.setItem(autoGenerateStorageKey.value, status.job_id)
+  isAutoGenerating.value = isAutoGenerateRunningStatus(status)
+  generatingChapter.value = status.current_chapter
+  if (status.current_chapter) {
+    selectedChapterNumber.value = status.current_chapter
+  }
+  autoGenerateStatus.value = {
+    currentChapter: status.current_chapter,
+    processed: status.processed,
+    total: status.total,
+    succeeded: status.succeeded,
+    failed: status.failed
+  }
+}
+
+const finishAutoGenerateStatus = async (status: AutoGenerateChaptersStatusResponse, notify: boolean) => {
+  stopAutoGeneratePolling()
+  isAutoGenerating.value = false
+  generatingChapter.value = null
+  localStorage.removeItem(autoGenerateStorageKey.value)
+  await novelStore.loadProject(props.id, true)
+
+  if (!notify || !status.job_id || notifiedAutoGenerateJobs.value.includes(status.job_id)) return
+  notifiedAutoGenerateJobs.value.push(status.job_id)
+
+  const message = status.message || `完成 ${status.processed} 章，成功 ${status.succeeded} 章，跳过 ${status.failed} 章`
+  if (status.status === 'failed' || status.failed > 0) {
+    globalAlert.showError(message, '自动生成完成')
+  } else {
+    globalAlert.showSuccess(message, '自动生成完成')
+  }
+}
+
+const pollAutoGenerateStatus = async (notify: boolean = false) => {
+  if (!project.value) return
+  try {
+    const status = await novelStore.getAutoGenerateChaptersStatus(autoGenerateJobId.value)
+    applyAutoGenerateStatus(status)
+
+    if (isAutoGenerateRunningStatus(status)) {
+      startAutoGeneratePolling()
+      await novelStore.loadProject(props.id, true)
+      return
+    }
+
+    if (status.job_id && (status.status === 'completed' || status.status === 'failed')) {
+      await finishAutoGenerateStatus(status, notify)
+      return
+    }
+
+    stopAutoGeneratePolling()
+  } catch (error) {
+    console.error('轮询自动生成状态失败:', error)
+  }
+}
+
+const resumeAutoGenerateStatus = async () => {
+  autoGenerateJobId.value = localStorage.getItem(autoGenerateStorageKey.value)
+  await pollAutoGenerateStatus(false)
+}
+
 const openAutoGenerateModal = () => {
   if (isAutoGenerating.value) return
   if (!autoGenerateAvailableCount.value) {
@@ -541,56 +615,30 @@ const autoGenerateChapters = async (count: number) => {
     return
   }
 
-  isAutoGenerating.value = true
-  autoGenerateStatus.value = {
-    currentChapter: null,
-    processed: 0,
-    total: targets.length,
-    succeeded: 0,
-    failed: 0
-  }
-
-  for (const chapterNumber of targets) {
-    autoGenerateStatus.value.currentChapter = chapterNumber
-    selectedChapterNumber.value = chapterNumber
-    generatingChapter.value = chapterNumber
-    updateLocalChapterStatus(chapterNumber, 'generating')
-
-    try {
-      await novelStore.generateChapter(chapterNumber, {
-        maxChars: 2500,
-        writingNotes: '自动批量生成：本章正文控制在2500字以内，保持与上一章衔接，直接输出正文。'
-      })
-
-      updateLocalChapterStatus(chapterNumber, 'selecting')
-      await novelStore.selectChapterVersion(chapterNumber, 0)
-      autoGenerateStatus.value.succeeded += 1
-    } catch (error) {
-      console.error(`自动生成第 ${chapterNumber} 章失败，已跳过:`, error)
-      updateLocalChapterStatus(chapterNumber, 'failed')
-      autoGenerateStatus.value.failed += 1
-    } finally {
-      autoGenerateStatus.value.processed += 1
-      generatingChapter.value = null
-      chapterGenerationResult.value = null
-      selectedVersionIndex.value = 0
-    }
-  }
-
   try {
-    await novelStore.loadProject(props.id, true)
+    const response = await novelStore.startAutoGenerateChapters({
+      startChapter: targets[0],
+      numChapters: targets.length,
+      maxChars: 5000,
+      writingNotes: '自动批量生成：本章正文控制在5000字以内，保持与上一章衔接，直接输出正文。'
+    })
+
+    autoGenerateJobId.value = response.job_id
+    localStorage.setItem(autoGenerateStorageKey.value, response.job_id)
+    isAutoGenerating.value = true
+    autoGenerateStatus.value = {
+      currentChapter: null,
+      processed: 0,
+      total: response.total,
+      succeeded: 0,
+      failed: 0
+    }
+    globalAlert.showSuccess('自动生成任务已在服务端启动，关闭页面也会继续执行。', '自动生成')
+    startAutoGeneratePolling()
+    await pollAutoGenerateStatus(false)
   } catch (error) {
-    console.error('自动生成后刷新项目失败:', error)
-  }
-
-  isAutoGenerating.value = false
-  autoGenerateStatus.value.currentChapter = null
-
-  const message = `完成 ${autoGenerateStatus.value.processed} 章，成功 ${autoGenerateStatus.value.succeeded} 章，跳过 ${autoGenerateStatus.value.failed} 章`
-  if (autoGenerateStatus.value.failed > 0) {
-    globalAlert.showError(message, '自动生成完成')
-  } else {
-    globalAlert.showSuccess(message, '自动生成完成')
+    console.error('启动自动生成失败:', error)
+    globalAlert.showError(`启动自动生成失败: ${error instanceof Error ? error.message : '未知错误'}`, '自动生成失败')
   }
 }
 
@@ -749,12 +797,14 @@ const handleGenerateOutline = async (numChapters: number) => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.body.classList.add('m3-novel')
-  loadProject()
+  await loadProject()
+  await resumeAutoGenerateStatus()
 })
 
 onUnmounted(() => {
+  stopAutoGeneratePolling()
   document.body.classList.remove('m3-novel')
 })
 </script>

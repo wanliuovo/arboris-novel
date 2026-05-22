@@ -164,6 +164,7 @@ body {
   background-color: var(--md-background);
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 /* ============================================
@@ -291,6 +292,7 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
 }
 
 .md-btn:focus-visible {
@@ -444,6 +446,7 @@ body {
   border-radius: var(--md-radius-md);
   overflow: hidden;
   transition: all var(--md-duration-medium) var(--md-easing-standard);
+  min-width: 0;
 }
 
 .md-card-elevated {
@@ -809,6 +812,64 @@ body {
   gap: 8px;
 }
 
+@media (max-width: 640px) {
+  :root {
+    --md-headline-medium: 24px;
+    --md-headline-small: 22px;
+    --md-title-large: 20px;
+  }
+
+  .md-top-app-bar {
+    padding: 0 8px;
+  }
+
+  .md-btn {
+    min-height: 44px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .md-btn-text {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .md-card-header,
+  .md-card-content {
+    padding: 16px;
+  }
+
+  .md-dialog-overlay {
+    align-items: flex-end;
+    padding: 8px;
+  }
+
+  .md-dialog {
+    width: 100%;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--md-radius-lg);
+  }
+
+  .md-dialog-header {
+    padding: 20px 16px 12px;
+  }
+
+  .md-dialog-content {
+    padding: 0 16px;
+  }
+
+  .md-dialog-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .md-dialog-actions .md-btn {
+    width: 100%;
+  }
+}
+
 /* ============================================
    Material 3 List
    ============================================ */
@@ -968,6 +1029,17 @@ body {
   font-weight: 500;
   cursor: pointer;
   padding: 0 8px;
+}
+
+@media (max-width: 640px) {
+  .md-snackbar {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    min-width: 0;
+    max-width: none;
+    transform: none;
+  }
 }
 
 /* ============================================

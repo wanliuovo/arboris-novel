@@ -25,10 +25,8 @@ def _normalize_version_content(raw_content: Any, metadata: Any) -> str:
     text = _coerce_text(raw_content)
     if text:
         return text
-    
-    # 如果没有原始内容，尝试从元数据提取（兼容旧逻辑）
-    text = _coerce_text(metadata)
-    return text or ""
+
+    return ""
 
 
 def _coerce_text(value: Any) -> Optional[str]:

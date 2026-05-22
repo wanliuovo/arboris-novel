@@ -1,10 +1,10 @@
 <!-- AIMETA P=注册页_用户注册|R=注册表单|NR=不含登录功能|E=route:/register#component:Register|X=ui|A=注册表单|D=vue|S=dom,net|RD=./README.ai -->
 <template>
-  <div class="flex flex-col items-center justify-center min-h-screen p-4">
-    <div class="mb-12">
+  <div class="flex flex-col items-center justify-center min-h-[100dvh] p-3 sm:p-4">
+    <div class="mb-6 sm:mb-12">
       <TypewriterEffect text="拯救小说家" />
     </div>
-    <div v-if="allowRegistration" class="w-full max-w-md p-8 space-y-8 bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl">
+    <div v-if="allowRegistration" class="w-full max-w-md p-5 sm:p-8 space-y-6 sm:space-y-8 bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl">
       <div>
         <h2 class="text-2xl font-bold text-center text-gray-800">
           加入我们
@@ -27,12 +27,12 @@
               class="w-full px-4 py-3 text-gray-700 bg-gray-100 border-2 border-gray-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 transition-all duration-300"
               placeholder="邮箱" />
           </div>
-          <div class="flex space-x-2 items-center">
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
             <input v-model="verificationCode" id="verificationCode" name="verificationCode" type="text" required
-              class="flex-1 px-4 py-3 text-gray-700 bg-gray-100 border-2 border-gray-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 transition-all duration-300"
+              class="w-full sm:flex-1 px-4 py-3 text-gray-700 bg-gray-100 border-2 border-gray-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500 transition-all duration-300"
               placeholder="验证码" />
             <button type="button" @click="sendCode" :disabled="countdown > 0 || sending"
-              class="px-4 py-3 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-60 transition-all duration-300">
+              class="w-full sm:w-auto px-4 py-3 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-60 transition-all duration-300">
               <span v-if="sending">发送中...</span>
               <span v-else>{{ countdown > 0 ? countdown + '秒后重试' : '发送验证码' }}</span>
             </button>
@@ -68,7 +68,7 @@
       </p>
     </div>
 
-    <div v-else class="w-full max-w-md p-8 space-y-6 text-center bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl">
+    <div v-else class="w-full max-w-md p-5 sm:p-8 space-y-6 text-center bg-white/70 backdrop-blur-xl rounded-2xl shadow-xl">
       <h2 class="text-xl font-bold text-gray-800">暂未开放注册</h2>
       <p class="text-sm text-gray-500">请联系管理员或稍后再试。</p>
       <router-link to="/login" class="inline-block px-4 py-2 text-sm font-medium text-blue-600 hover:underline">

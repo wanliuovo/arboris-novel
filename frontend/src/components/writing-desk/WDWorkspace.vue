@@ -3,9 +3,9 @@
   <div class="flex-1 min-w-0 h-full">
     <div class="md-card md-card-elevated h-full flex flex-col" style="border-radius: var(--md-radius-xl);">
       <!-- 章节工作区头部 -->
-      <div v-if="selectedChapterNumber" class="md-card-header flex-shrink-0">
-        <div class="flex items-center justify-between">
-          <div>
+      <div v-if="selectedChapterNumber" class="md-card-header flex-shrink-0 p-4 sm:p-6">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div class="min-w-0">
             <div class="flex items-center gap-3 mb-2">
               <h2 class="md-title-large font-semibold">第{{ selectedChapterNumber }}章</h2>
               <span
@@ -19,15 +19,15 @@
                 {{ isChapterCompleted(selectedChapterNumber) ? '已完成' : '未完成' }}
               </span>
             </div>
-            <h3 class="md-title-medium md-on-surface mb-1">{{ selectedChapterOutline?.title || '未知标题' }}</h3>
-            <p class="md-body-small md-on-surface-variant">{{ selectedChapterOutline?.summary || '暂无章节描述' }}</p>
+            <h3 class="md-title-medium md-on-surface mb-1 break-words">{{ selectedChapterOutline?.title || '未知标题' }}</h3>
+            <p class="md-body-small md-on-surface-variant break-words">{{ selectedChapterOutline?.summary || '暂无章节描述' }}</p>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex w-full sm:w-auto flex-wrap sm:flex-nowrap items-center gap-2">
             <button
               v-if="isChapterCompleted(selectedChapterNumber)"
               @click="openEditModal"
-              class="md-btn md-btn-tonal md-ripple flex items-center gap-2 whitespace-nowrap"
+              class="md-btn md-btn-tonal md-ripple flex flex-1 sm:flex-none items-center gap-2 whitespace-nowrap"
             >
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
@@ -37,7 +37,7 @@
             <button
               @click="confirmRegenerateChapter"
               :disabled="generatingChapter === selectedChapterNumber"
-              class="md-btn md-btn-filled md-ripple flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
+              class="md-btn md-btn-filled md-ripple flex flex-1 sm:flex-none items-center gap-2 whitespace-nowrap disabled:opacity-50"
             >
               <svg v-if="generatingChapter === selectedChapterNumber" class="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
@@ -73,7 +73,7 @@
     <div v-if="showEditModal" class="md-dialog-overlay">
       <div class="md-dialog w-full h-full max-w-5xl m3-editor-dialog">
         <!-- 模态框头部 -->
-        <div class="flex items-center justify-between p-6 border-b" style="border-bottom-color: var(--md-outline-variant);">
+        <div class="flex items-center justify-between gap-3 p-4 sm:p-6 border-b" style="border-bottom-color: var(--md-outline-variant);">
           <h3 class="md-title-large font-semibold">
             编辑第{{ selectedChapterNumber }}章内容
           </h3>
@@ -88,7 +88,7 @@
         </div>
 
         <!-- 模态框内容 -->
-        <div class="flex-1 p-6 overflow-hidden">
+        <div class="flex-1 p-4 sm:p-6 overflow-hidden">
           <div class="flex flex-col h-full">
             <label class="md-text-field-label mb-2">
               章节内容
@@ -106,18 +106,18 @@
         </div>
 
         <!-- 模态框底部 -->
-        <div class="flex items-center justify-end gap-3 p-6 border-t" style="border-top-color: var(--md-outline-variant);">
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3 p-4 sm:p-6 border-t" style="border-top-color: var(--md-outline-variant);">
           <button
             @click="closeEditModal"
             :disabled="isSaving"
-            class="md-btn md-btn-outlined md-ripple disabled:opacity-50"
+            class="md-btn md-btn-outlined md-ripple disabled:opacity-50 w-full sm:w-auto"
           >
             取消
           </button>
           <button
             @click="saveEditedContent"
             :disabled="isSaving || !editingContent.trim()"
-            class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2"
+            class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2 w-full sm:w-auto"
           >
             <svg v-if="isSaving" class="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
@@ -430,5 +430,15 @@ const currentComponentProps = computed(() => {
   max-width: min(1200px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   border-radius: var(--md-radius-xl);
+}
+
+@media (max-width: 640px) {
+  .m3-editor-dialog {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--md-radius-lg);
+  }
 }
 </style>

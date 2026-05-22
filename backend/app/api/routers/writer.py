@@ -16,9 +16,11 @@ import asyncio
 import json
 import logging
 import os
-from typing import Dict, List, Optional
+from types import SimpleNamespace
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -32,6 +34,9 @@ from ...schemas.novel import (
     ChapterGenerationStatus,
     AdvancedGenerateRequest,
     AdvancedGenerateResponse,
+    AutoGenerateChaptersRequest,
+    AutoGenerateChaptersStartResponse,
+    AutoGenerateChaptersStatusResponse,
     DeleteChapterRequest,
     EditChapterRequest,
     EvaluateChapterRequest,
@@ -60,6 +65,9 @@ from ...services.pipeline_orchestrator import PipelineOrchestrator
 
 router = APIRouter(prefix="/api/writer", tags=["Writer"])
 logger = logging.getLogger(__name__)
+MAX_CHAPTER_REGENERATION_ATTEMPTS = 5
+AUTO_GENERATION_JOBS: Dict[str, Dict[str, Any]] = {}
+AUTO_GENERATION_PROJECT_JOBS: Dict[str, str] = {}
 
 
 async def _load_project_schema(service: NovelService, project_id: str, user_id: int) -> NovelProjectSchema:
@@ -82,6 +90,155 @@ def _limit_chapter_content(text: str, max_chars: Optional[int]) -> str:
     if not max_chars or max_chars <= 0 or len(cleaned) <= max_chars:
         return cleaned
     return cleaned[:max_chars].rstrip()
+
+
+def _extract_chapter_text_from_value(value: object) -> Optional[str]:
+    if not value:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    if isinstance(value, dict):
+        for key in ("content", "chapter_content", "chapter_text", "full_content", "text", "body", "story"):
+            if value.get(key):
+                nested = _extract_chapter_text_from_value(value.get(key))
+                if nested:
+                    return nested
+        return None
+    if isinstance(value, list):
+        for item in value:
+            nested = _extract_chapter_text_from_value(item)
+            if nested:
+                return nested
+    return None
+
+
+def _looks_like_generation_metadata(value: dict) -> bool:
+    metadata_keys = {"content", "parsed_json", "guardrail", "chapter_mission", "max_chars", "ai_review"}
+    return len(metadata_keys.intersection(value.keys())) >= 2
+
+
+def _is_failed_chapter_content(text: object) -> bool:
+    """识别空正文或把生成元数据 JSON 当正文的坏版本。"""
+    if text is None:
+        return True
+    if not isinstance(text, str):
+        return False
+
+    stripped = text.strip()
+    if not stripped:
+        return True
+
+    if stripped.startswith(("{", "[")) and stripped.endswith(("}", "]")):
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return False
+
+        extracted = _extract_chapter_text_from_value(parsed)
+        if not extracted:
+            return True
+        if isinstance(parsed, dict) and _looks_like_generation_metadata(parsed):
+            return _is_failed_chapter_content(extracted)
+
+    return False
+
+
+def _auto_generation_project_key(project_id: str, user_id: int) -> str:
+    return f"{user_id}:{project_id}"
+
+
+def _snapshot_auto_generation_job(job: Optional[Dict[str, Any]]) -> AutoGenerateChaptersStatusResponse:
+    if not job:
+        return AutoGenerateChaptersStatusResponse()
+    return AutoGenerateChaptersStatusResponse(
+        job_id=job.get("job_id"),
+        project_id=job.get("project_id"),
+        status=job.get("status", "idle"),
+        current_chapter=job.get("current_chapter"),
+        total=job.get("total", 0),
+        processed=job.get("processed", 0),
+        succeeded=job.get("succeeded", 0),
+        failed=job.get("failed", 0),
+        chapters=job.get("chapters", []),
+        failed_chapters=job.get("failed_chapters", []),
+        message=job.get("message"),
+    )
+
+
+async def _mark_auto_generated_chapter_failed(project_id: str, chapter_number: int) -> None:
+    async with AsyncSessionLocal() as session:
+        stmt = select(Chapter).where(
+            Chapter.project_id == project_id,
+            Chapter.chapter_number == chapter_number,
+        )
+        result = await session.execute(stmt)
+        chapter = result.scalars().first()
+        if chapter:
+            chapter.status = ChapterGenerationStatus.FAILED.value
+            await session.commit()
+
+
+async def _run_auto_generation_job(job_id: str) -> None:
+    job = AUTO_GENERATION_JOBS.get(job_id)
+    if not job:
+        return
+
+    project_id = job["project_id"]
+    user_id = job["user_id"]
+    user_context = SimpleNamespace(id=user_id)
+
+    job["status"] = "running"
+    job["message"] = "自动生成任务运行中"
+
+    try:
+        for chapter_number in job["chapters"]:
+            job["current_chapter"] = chapter_number
+            try:
+                async with AsyncSessionLocal() as session:
+                    generate_request = GenerateChapterRequest(
+                        chapter_number=chapter_number,
+                        writing_notes=job.get("writing_notes"),
+                        max_chars=job.get("max_chars", 5000),
+                    )
+                    await generate_chapter(
+                        project_id=project_id,
+                        request=generate_request,
+                        session=session,
+                        current_user=user_context,
+                    )
+                    await select_chapter_version(
+                        project_id=project_id,
+                        request=SelectVersionRequest(
+                            chapter_number=chapter_number,
+                            version_index=0,
+                        ),
+                        session=session,
+                        current_user=user_context,
+                    )
+                job["succeeded"] += 1
+            except Exception as exc:
+                logger.exception("项目 %s 自动生成第 %s 章失败，已跳过: %s", project_id, chapter_number, exc)
+                job["failed"] += 1
+                job["failed_chapters"].append({
+                    "chapter_number": chapter_number,
+                    "error": str(exc)[:300],
+                })
+                await _mark_auto_generated_chapter_failed(project_id, chapter_number)
+            finally:
+                job["processed"] += 1
+
+        job["status"] = "completed"
+        job["message"] = f"自动生成完成：成功 {job['succeeded']} 章，跳过 {job['failed']} 章"
+    except Exception as exc:
+        logger.exception("项目 %s 自动生成任务异常终止: %s", project_id, exc)
+        job["status"] = "failed"
+        job["message"] = f"自动生成任务异常终止: {str(exc)[:300]}"
+    finally:
+        job["current_chapter"] = None
+        project_key = _auto_generation_project_key(project_id, user_id)
+        if AUTO_GENERATION_PROJECT_JOBS.get(project_key) == job_id:
+            AUTO_GENERATION_PROJECT_JOBS.pop(project_key, None)
 
 
 async def _resolve_version_count(session: AsyncSession) -> int:
@@ -452,6 +609,90 @@ async def finalize_chapter(
     )
 
 
+@router.post("/novels/{project_id}/chapters/auto-generate", response_model=AutoGenerateChaptersStartResponse)
+async def start_auto_generate_chapters(
+    project_id: str,
+    request: AutoGenerateChaptersRequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: UserInDB = Depends(get_current_user),
+) -> AutoGenerateChaptersStartResponse:
+    novel_service = NovelService(session)
+    project = await novel_service.ensure_project_owner(project_id, current_user.id)
+    project_key = _auto_generation_project_key(project_id, current_user.id)
+
+    existing_job_id = AUTO_GENERATION_PROJECT_JOBS.get(project_key)
+    existing_job = AUTO_GENERATION_JOBS.get(existing_job_id or "")
+    if existing_job and existing_job.get("status") in {"pending", "running"}:
+        return AutoGenerateChaptersStartResponse(
+            job_id=existing_job["job_id"],
+            status=existing_job["status"],
+            total=existing_job.get("total", 0),
+            message="已有自动生成任务正在运行",
+        )
+
+    chapter_status = {
+        chapter.chapter_number: chapter.status
+        for chapter in project.chapters
+    }
+    targets = [
+        outline.chapter_number
+        for outline in sorted(project.outlines, key=lambda item: item.chapter_number)
+        if outline.chapter_number >= request.start_chapter
+        and chapter_status.get(outline.chapter_number) != ChapterGenerationStatus.SUCCESSFUL.value
+    ][: request.num_chapters]
+
+    if not targets:
+        raise HTTPException(status_code=400, detail="没有需要自动生成的章节")
+
+    job_id = str(uuid4())
+    job = {
+        "job_id": job_id,
+        "project_id": project_id,
+        "user_id": current_user.id,
+        "status": "pending",
+        "current_chapter": None,
+        "total": len(targets),
+        "processed": 0,
+        "succeeded": 0,
+        "failed": 0,
+        "chapters": targets,
+        "failed_chapters": [],
+        "max_chars": request.max_chars,
+        "writing_notes": request.writing_notes
+        or "自动批量生成：本章正文控制在5000字以内，保持与上一章衔接，直接输出正文。",
+        "message": "自动生成任务已创建",
+    }
+    AUTO_GENERATION_JOBS[job_id] = job
+    AUTO_GENERATION_PROJECT_JOBS[project_key] = job_id
+    asyncio.create_task(_run_auto_generation_job(job_id))
+
+    return AutoGenerateChaptersStartResponse(
+        job_id=job_id,
+        status="pending",
+        total=len(targets),
+        message="自动生成任务已在服务端启动",
+    )
+
+
+@router.get("/novels/{project_id}/chapters/auto-generate/status", response_model=AutoGenerateChaptersStatusResponse)
+async def get_auto_generate_chapters_status(
+    project_id: str,
+    job_id: Optional[str] = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user: UserInDB = Depends(get_current_user),
+) -> AutoGenerateChaptersStatusResponse:
+    novel_service = NovelService(session)
+    await novel_service.ensure_project_owner(project_id, current_user.id)
+
+    resolved_job_id = job_id or AUTO_GENERATION_PROJECT_JOBS.get(
+        _auto_generation_project_key(project_id, current_user.id)
+    )
+    job = AUTO_GENERATION_JOBS.get(resolved_job_id or "")
+    if not job or job.get("project_id") != project_id or job.get("user_id") != current_user.id:
+        return AutoGenerateChaptersStatusResponse()
+    return _snapshot_auto_generation_job(job)
+
+
 @router.post("/novels/{project_id}/chapters/generate", response_model=NovelProjectSchema)
 async def generate_chapter(
     project_id: str,
@@ -698,30 +939,11 @@ async def generate_chapter(
                     user_id=current_user.id,
                 )
 
-            def _extract_text(value: object) -> Optional[str]:
-                if not value:
-                    return None
-                if isinstance(value, str):
-                    return value
-                if isinstance(value, dict):
-                    for key in ("content", "chapter_content", "chapter_text", "text", "body", "story"):
-                        if value.get(key):
-                            nested = _extract_text(value.get(key))
-                            if nested:
-                                return nested
-                    return None
-                if isinstance(value, list):
-                    for item in value:
-                        nested = _extract_text(item)
-                        if nested:
-                            return nested
-                return None
-
             parsed_json = None
             extracted_text = None
             try:
                 parsed_json = json.loads(final_content)
-                extracted_text = _extract_text(parsed_json)
+                extracted_text = _extract_chapter_text_from_value(parsed_json)
             except Exception:
                 parsed_json = None
 
@@ -764,10 +986,59 @@ async def generate_chapter(
     ]
 
     raw_versions = []
+    contents: List[str] = []
+    metadata: List[Dict] = []
     try:
-        for idx in range(version_count):
-            style_hint = version_style_hints[idx] if idx < len(version_style_hints) else None
-            raw_versions.append(await _generate_single_version(idx, style_hint))
+        for attempt in range(1, MAX_CHAPTER_REGENERATION_ATTEMPTS + 1):
+            raw_versions = []
+            for idx in range(version_count):
+                style_hint = version_style_hints[idx] if idx < len(version_style_hints) else None
+                raw_versions.append(await _generate_single_version(idx, style_hint))
+
+            contents = []
+            metadata = []
+            for variant in raw_versions:
+                if isinstance(variant, dict):
+                    if "content" in variant and isinstance(variant["content"], str):
+                        contents.append(variant["content"])
+                    elif "chapter_content" in variant:
+                        contents.append(str(variant["chapter_content"]))
+                    else:
+                        contents.append("")
+                    metadata.append(variant)
+                else:
+                    contents.append(str(variant))
+                    metadata.append({"raw": variant})
+
+            valid_pairs = [
+                (content, item_metadata)
+                for content, item_metadata in zip(contents, metadata)
+                if not _is_failed_chapter_content(content)
+            ]
+            if valid_pairs:
+                if len(valid_pairs) < len(contents):
+                    logger.warning(
+                        "项目 %s 第 %s 章第 %s 次生成中有 %s 个坏版本，已过滤",
+                        project_id,
+                        request.chapter_number,
+                        attempt,
+                        len(contents) - len(valid_pairs),
+                    )
+                contents = [content for content, _ in valid_pairs]
+                metadata = [item_metadata for _, item_metadata in valid_pairs]
+                break
+
+            logger.warning(
+                "项目 %s 第 %s 章第 %s 次生成全部为坏版本，准备重新生成",
+                project_id,
+                request.chapter_number,
+                attempt,
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"连续 {MAX_CHAPTER_REGENERATION_ATTEMPTS} 次生成均未得到有效正文"
+            )
     except Exception as exc:
         logger.exception("项目 %s 生成第 %s 章时发生异常: %s", project_id, request.chapter_number, exc)
         chapter.status = "failed"
@@ -778,21 +1049,6 @@ async def generate_chapter(
             status_code=500,
             detail=f"生成章节失败: {str(exc)[:200]}"
         )
-
-    contents: List[str] = []
-    metadata: List[Dict] = []
-    for variant in raw_versions:
-        if isinstance(variant, dict):
-            if "content" in variant and isinstance(variant["content"], str):
-                contents.append(variant["content"])
-            elif "chapter_content" in variant:
-                contents.append(str(variant["chapter_content"]))
-            else:
-                contents.append(json.dumps(variant, ensure_ascii=False))
-            metadata.append(variant)
-        else:
-            contents.append(str(variant))
-            metadata.append({"raw": variant})
 
     # ========== 8. AI Review: 自动评审多版本 ==========
     ai_review_result = None

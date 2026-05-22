@@ -134,7 +134,40 @@ class NovelSectionResponse(BaseModel):
 class GenerateChapterRequest(BaseModel):
     chapter_number: int
     writing_notes: Optional[str] = Field(default=None, description="章节额外写作指令")
-    max_chars: Optional[int] = Field(default=None, ge=1, le=2500, description="章节正文最大字数")
+    max_chars: Optional[int] = Field(default=None, ge=1, le=5000, description="章节正文最大字数")
+
+
+class AutoGenerateChaptersRequest(BaseModel):
+    start_chapter: int = Field(..., ge=1, description="自动生成起始章节")
+    num_chapters: int = Field(..., ge=1, le=50, description="本次自动生成章节数量")
+    max_chars: int = Field(default=5000, ge=1, le=5000, description="每章正文最大字数")
+    writing_notes: Optional[str] = Field(default=None, description="批量生成额外写作指令")
+
+
+class AutoGenerateChaptersStartResponse(BaseModel):
+    job_id: str
+    status: str
+    total: int
+    message: str
+
+
+class AutoGenerateChapterFailure(BaseModel):
+    chapter_number: int
+    error: str
+
+
+class AutoGenerateChaptersStatusResponse(BaseModel):
+    job_id: Optional[str] = None
+    project_id: Optional[str] = None
+    status: str = "idle"
+    current_chapter: Optional[int] = None
+    total: int = 0
+    processed: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    chapters: List[int] = Field(default_factory=list)
+    failed_chapters: List[AutoGenerateChapterFailure] = Field(default_factory=list)
+    message: Optional[str] = None
 
 
 class FlowConfig(BaseModel):

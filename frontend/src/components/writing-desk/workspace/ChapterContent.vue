@@ -2,7 +2,7 @@
 <template>
   <div class="space-y-6">
     <div class="md-card md-card-filled p-4 mb-6" style="border-radius: var(--md-radius-lg); background-color: var(--md-success-container);">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-2" style="color: var(--md-on-success-container);">
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
@@ -13,7 +13,7 @@
         <button
           v-if="selectedChapter.versions && selectedChapter.versions.length > 0"
           @click="$emit('showVersionSelector', true)"
-          class="md-btn md-btn-text md-ripple flex items-center gap-1"
+          class="md-btn md-btn-text md-ripple flex items-center gap-1 w-full sm:w-auto"
         >
           <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
@@ -25,15 +25,15 @@
     </div>
 
     <div class="md-card md-card-outlined p-6" style="border-radius: var(--md-radius-xl);">
-      <div class="flex items-center justify-between mb-4 gap-3">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
         <h4 class="md-title-medium font-semibold">章节内容</h4>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <div class="md-body-small md-on-surface-variant">
             约 {{ Math.round(cleanVersionContent(selectedChapter.content || '').length / 100) * 100 }} 字
           </div>
           <!-- 分层优化按钮 -->
           <button
-            class="md-btn md-btn-tonal md-ripple flex items-center gap-1"
+            class="md-btn md-btn-tonal md-ripple flex items-center gap-1 w-full sm:w-auto"
             @click="showOptimizer = true"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,7 +42,7 @@
             分层优化
           </button>
           <button
-            class="md-btn md-btn-outlined md-ripple flex items-center gap-1"
+            class="md-btn md-btn-outlined md-ripple flex items-center gap-1 w-full sm:w-auto"
             :class="selectedChapter.content ? '' : 'opacity-50 cursor-not-allowed'"
             :disabled="!selectedChapter.content"
             @click="exportChapterAsTxt(selectedChapter)"
@@ -67,9 +67,9 @@
         @click.self="showOptimizer = false"
       >
         <div class="md-dialog m3-optimizer-dialog">
-          <div class="p-6">
+          <div class="p-4 sm:p-6">
             <!-- 优化面板头部 -->
-            <div class="flex items-center justify-between mb-6">
+            <div class="flex items-start justify-between gap-3 mb-6">
               <div>
                 <h3 class="md-headline-small font-semibold">✨ 分层优化</h3>
                 <p class="md-body-small md-on-surface-variant mt-1">选择一个维度进行深度优化，让文字更有灵魂</p>
@@ -85,7 +85,7 @@
             </div>
 
             <!-- 优化维度选择 -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6">
               <button
                 v-for="dim in optimizeDimensions"
                 :key="dim.key"
@@ -119,17 +119,17 @@
             </div>
 
             <!-- 操作按钮 -->
-            <div class="flex justify-end gap-3">
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <button
                 @click="showOptimizer = false"
-                class="md-btn md-btn-outlined md-ripple"
+                class="md-btn md-btn-outlined md-ripple w-full sm:w-auto"
               >
                 取消
               </button>
               <button
                 @click="startOptimize"
                 :disabled="!selectedDimension || isOptimizing"
-                class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2"
+                class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2 w-full sm:w-auto"
               >
                 <svg v-if="isOptimizing" class="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
@@ -150,8 +150,8 @@
         @click.self="showOptimizeResult = false"
       >
         <div class="md-dialog m3-result-dialog flex flex-col">
-          <div class="p-6 border-b" style="border-bottom-color: var(--md-outline-variant);">
-            <div class="flex items-center justify-between">
+          <div class="p-4 sm:p-6 border-b" style="border-bottom-color: var(--md-outline-variant);">
+            <div class="flex items-start justify-between gap-3">
               <div>
                 <h3 class="md-headline-small font-semibold">优化结果预览</h3>
                 <p class="md-body-small md-on-surface-variant mt-1">{{ optimizeResultNotes }}</p>
@@ -166,22 +166,22 @@
               </button>
             </div>
           </div>
-          <div class="flex-1 overflow-y-auto p-6">
+          <div class="flex-1 overflow-y-auto p-4 sm:p-6">
             <div class="prose max-w-none">
               <div class="whitespace-pre-wrap leading-relaxed" style="color: var(--md-on-surface);">{{ optimizedContent }}</div>
             </div>
           </div>
-          <div class="p-6 border-t flex justify-end gap-3" style="border-top-color: var(--md-outline-variant);">
+          <div class="p-4 sm:p-6 border-t flex flex-col-reverse sm:flex-row sm:justify-end gap-3" style="border-top-color: var(--md-outline-variant);">
             <button
               @click="showOptimizeResult = false"
-              class="md-btn md-btn-outlined md-ripple"
+              class="md-btn md-btn-outlined md-ripple w-full sm:w-auto"
             >
               取消
             </button>
             <button
               @click="applyOptimization"
               :disabled="isApplying"
-              class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2"
+              class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2 w-full sm:w-auto"
               style="background-color: var(--md-success); color: var(--md-on-success);"
             >
               <svg v-if="isApplying" class="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
@@ -380,6 +380,16 @@ const applyOptimization = async () => {
   max-width: min(900px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   border-radius: var(--md-radius-xl);
+}
+
+@media (max-width: 640px) {
+  .m3-optimizer-dialog,
+  .m3-result-dialog {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--md-radius-lg);
+  }
 }
 
 .m3-option {

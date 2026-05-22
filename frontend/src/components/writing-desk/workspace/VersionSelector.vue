@@ -3,7 +3,7 @@
   <div class="space-y-6">
     <!-- AI 评审提示 -->
     <div v-if="isEvaluationFailed" class="md-card md-card-filled p-4" style="border-radius: var(--md-radius-lg); background-color: var(--md-error-container);">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background-color: var(--md-error);">
             <svg class="w-5 h-5" style="color: var(--md-on-error);" fill="currentColor" viewBox="0 0 20 20">
@@ -18,7 +18,7 @@
         <button
           @click="$emit('evaluateChapter')"
           :disabled="evaluatingChapter === selectedChapter?.chapter_number"
-          class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+          class="md-btn md-btn-filled md-ripple disabled:opacity-50 flex items-center gap-2 whitespace-nowrap w-full sm:w-auto"
           style="background-color: var(--md-error); color: var(--md-on-error);"
         >
           <svg v-if="evaluatingChapter === selectedChapter?.chapter_number" class="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
@@ -29,7 +29,7 @@
       </div>
     </div>
     <div v-else-if="selectedChapter?.evaluation" class="md-card md-card-filled p-4" style="border-radius: var(--md-radius-lg); background-color: var(--md-secondary-container);">
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style="background-color: var(--md-secondary);">
             <svg class="w-5 h-5" style="color: var(--md-on-secondary);" fill="currentColor" viewBox="0 0 20 20">
@@ -41,7 +41,7 @@
             <p class="md-body-small" style="color: var(--md-on-secondary-container);">AI 已对所有版本进行评估，点击查看详细结果。</p>
           </div>
         </div>
-        <button @click="$emit('showEvaluationDetail')" class="md-btn md-btn-filled md-ripple flex items-center gap-2 whitespace-nowrap">
+        <button @click="$emit('showEvaluationDetail')" class="md-btn md-btn-filled md-ripple flex items-center gap-2 whitespace-nowrap w-full sm:w-auto">
           查看 AI 评审
         </button>
       </div>
@@ -123,11 +123,11 @@
               </svg>
               <span v-else>{{ index + 1 }}</span>
             </div>
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <p class="md-body-medium md-on-surface line-clamp-3">
                 {{ cleanVersionContent(version.content).substring(0, 150) }}...
               </p>
-              <div class="mt-2 flex items-center gap-2 md-body-small md-on-surface-variant">
+              <div class="mt-2 flex flex-wrap items-center gap-2 md-body-small md-on-surface-variant">
                 <span>约 {{ Math.round(cleanVersionContent(version.content).length / 100) * 100 }} 字</span>
                 <span>•</span>
                 <span>{{ version.style || '标准' }}风格</span>
@@ -150,11 +150,11 @@
         </div>
       </div>
 
-      <div class="mt-4 flex justify-end items-center gap-4">
+      <div class="mt-4 flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3 sm:gap-4">
         <button
           @click="$emit('evaluateChapter')"
           :disabled="evaluatingChapter === selectedChapter?.chapter_number || availableVersions.length < 2"
-          class="md-btn md-btn-tonal md-ripple disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          class="md-btn md-btn-tonal md-ripple disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-full sm:w-auto"
         >
           <svg v-if="evaluatingChapter === selectedChapter?.chapter_number" class="w-4 h-4 animate-spin" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
@@ -164,7 +164,7 @@
         <button
           @click="$emit('confirmVersionSelection')"
           :disabled="!availableVersions?.[selectedVersionIndex]?.content || isCurrentVersion(selectedVersionIndex) || isSelectingVersion"
-          class="md-btn md-btn-filled md-ripple disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          class="md-btn md-btn-filled md-ripple disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-full sm:w-auto"
         >
           <svg v-if="isSelectingVersion" class="w-5 h-5 animate-spin" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>

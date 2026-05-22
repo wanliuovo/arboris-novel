@@ -1,9 +1,9 @@
 <!-- AIMETA P=小说详情壳_详情页布局容器|R=详情页布局_导航|NR=不含具体内容|E=component:NovelDetailShell|X=internal|A=布局组件|D=vue|S=dom|RD=./README.ai -->
 <template>
-  <div class="h-screen flex flex-col overflow-hidden md-surface">
+  <div class="h-[100dvh] flex flex-col overflow-hidden md-surface">
     <!-- Material 3 Top App Bar -->
     <header class="md-top-app-bar sticky top-0 z-40">
-      <div class="max-w-[1800px] mx-auto w-full flex items-center px-4 h-16">
+      <div class="max-w-[1800px] mx-auto w-full flex items-center px-2 sm:px-4 h-16">
         <!-- Leading: Menu Button (Mobile) -->
         <button
           class="md-icon-btn lg:hidden mr-2"
@@ -26,9 +26,9 @@
         </div>
 
         <!-- Trailing: Actions -->
-        <div class="flex items-center gap-2 flex-shrink-0">
+        <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <button
-            class="md-btn md-btn-outlined md-ripple"
+            class="md-btn md-btn-outlined md-ripple px-3 sm:px-6"
             @click="goBack"
           >
             <svg class="w-5 h-5 hidden sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -39,7 +39,7 @@
           </button>
           <button
             v-if="!isAdmin"
-            class="md-btn md-btn-filled md-ripple"
+            class="md-btn md-btn-filled md-ripple px-3 sm:px-6"
             @click="goToWritingDesk"
           >
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -56,7 +56,7 @@
     <div class="flex max-w-[1800px] mx-auto w-full flex-1 min-h-0 overflow-hidden">
       <!-- Material 3 Navigation Drawer -->
       <aside
-        class="fixed left-0 top-16 bottom-0 z-30 w-80 md-surface transform transition-transform duration-300 lg:translate-x-0"
+        class="fixed left-0 top-16 bottom-0 z-30 w-[min(20rem,calc(100vw-1.5rem))] md-surface transform transition-transform duration-300 lg:translate-x-0"
         :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
         style="border-right: 1px solid var(--md-outline-variant);"
       >
@@ -115,11 +115,11 @@
 
       <!-- Main Content Area -->
       <div class="flex-1 lg:ml-80 min-h-0 flex flex-col h-full">
-        <div class="flex-1 min-h-0 h-full p-4 sm:p-6 lg:p-8 flex flex-col overflow-hidden box-border">
+        <div class="flex-1 min-h-0 h-full p-3 sm:p-6 lg:p-8 flex flex-col overflow-hidden box-border">
           <div class="flex-1 flex flex-col min-h-0 h-full">
             <!-- Material 3 Card -->
             <div 
-              class="md-card md-card-elevated flex-1 h-full p-6 sm:p-8 min-h-[20rem] flex flex-col box-border" 
+              class="md-card md-card-elevated flex-1 h-full p-4 sm:p-8 min-h-[20rem] flex flex-col box-border" 
               :class="contentCardClass"
               style="border-radius: var(--md-radius-lg);"
             >
