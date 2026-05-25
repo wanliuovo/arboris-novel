@@ -1,7 +1,8 @@
 # AIMETA P=小说API_项目和章节管理|R=小说CRUD_章节管理|NR=不含内容生成|E=route:GET_POST_/api/novels/*|X=http|A=小说CRUD_章节|D=fastapi,sqlalchemy|S=db|RD=./README.ai
 import json
 import logging
-from typing import Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,9 @@ from ...services.prompt_service import PromptService
 from ...utils.json_utils import remove_think_tags, sanitize_json_like_text, unwrap_markdown_json
 
 logger = logging.getLogger(__name__)
+BLUEPRINT_GENERATION_MAX_ATTEMPTS = 5
+BLUEPRINT_OUTLINE_BATCH_SIZE = 10
+DEFAULT_BLUEPRINT_CHAPTERS = 30
 
 router = APIRouter(prefix="/api/novels", tags=["Novels"])
 
@@ -53,6 +57,230 @@ def _ensure_prompt(prompt: str | None, name: str) -> str:
     if not prompt:
         raise HTTPException(status_code=500, detail=f"未配置名为 {name} 的提示词，请联系管理员")
     return prompt
+
+
+def _extract_target_chapter_count_from_text(text: str) -> Optional[int]:
+    if not text:
+        return None
+
+    cleaned = text.strip()
+    range_match = re.search(r"(\d{1,3})\s*[-~—到至]\s*(\d{1,3})\s*章?", cleaned)
+    if range_match:
+        return min(int(range_match.group(2)), 200)
+
+    plus_match = re.search(r"(\d{1,3})\s*章?\s*(?:以上|\+)", cleaned)
+    if plus_match:
+        return min(int(plus_match.group(1)), 200)
+
+    exact_patterns = [
+        r"(?:共|总共|一共|大概|大约|预计|计划|写|生成|需要|要)?\s*(\d{1,3})\s*章",
+        r"^(\d{1,3})$",
+    ]
+    for pattern in exact_patterns:
+        match = re.search(pattern, cleaned)
+        if match:
+            return min(int(match.group(1)), 200)
+
+    if "短篇" in cleaned:
+        return 20
+    if "中篇" in cleaned:
+        return 40
+    if "长篇" in cleaned:
+        return 60
+    if "史诗" in cleaned:
+        return 60
+
+    return None
+
+
+def _extract_target_chapter_count(history: List[Dict[str, str]]) -> Optional[int]:
+    for item in reversed(history):
+        if item.get("role") != "user":
+            continue
+        count = _extract_target_chapter_count_from_text(item.get("content", ""))
+        if count:
+            return count
+    return None
+
+
+def _build_blueprint_constraints(target_chapters: Optional[int]) -> str:
+    return f"""
+[硬性蓝图主体生成约束]
+用户最终选择/输入的篇幅按 {target_chapters or DEFAULT_BLUEPRINT_CHAPTERS} 章处理。
+本次只生成小说蓝图主体字段，不要在这一步生成章节大纲。
+chapter_outline 必须返回空数组 []，完整章节大纲会由服务端随后分批生成并校验。
+必须只返回合法 JSON 对象，不要输出 Markdown 或解释文字。
+"""
+
+
+def _normalize_chapter_outline(blueprint_data: Dict[str, Any]) -> None:
+    outlines = blueprint_data.get("chapter_outline")
+    if not isinstance(outlines, list):
+        blueprint_data["chapter_outline"] = []
+        return
+
+    normalized = []
+    for index, outline in enumerate(outlines, start=1):
+        if not isinstance(outline, dict):
+            continue
+        item = dict(outline)
+        item["chapter_number"] = int(item.get("chapter_number") or index)
+        item["title"] = str(item.get("title") or f"第{item['chapter_number']}章")
+        item["summary"] = str(item.get("summary") or "")
+        normalized.append(item)
+    normalized.sort(key=lambda item: item["chapter_number"])
+    blueprint_data["chapter_outline"] = normalized
+
+
+def _validate_complete_chapter_outline(blueprint_data: Dict[str, Any], target_chapters: Optional[int]) -> None:
+    outlines = blueprint_data.get("chapter_outline")
+    if not isinstance(outlines, list) or not outlines:
+        raise ValueError("chapter_outline 为空")
+
+    if not target_chapters:
+        return
+
+    if len(outlines) != target_chapters:
+        raise ValueError(f"chapter_outline 数量为 {len(outlines)}，不是目标 {target_chapters} 章")
+
+    expected_numbers = list(range(1, target_chapters + 1))
+    actual_numbers = [item.get("chapter_number") for item in outlines if isinstance(item, dict)]
+    if actual_numbers != expected_numbers:
+        raise ValueError("chapter_outline 章节号不连续或不是从 1 开始")
+
+
+def _parse_llm_json_object(raw: str) -> Dict[str, Any]:
+    normalized = unwrap_markdown_json(remove_think_tags(raw))
+    sanitized = sanitize_json_like_text(normalized)
+    parsed = json.loads(sanitized)
+    if not isinstance(parsed, dict):
+        raise ValueError("AI 返回内容不是 JSON 对象")
+    return parsed
+
+
+def _build_outline_batch_prompt(
+    blueprint_data: Dict[str, Any],
+    existing_outlines: List[Dict[str, Any]],
+    start_chapter: int,
+    end_chapter: int,
+    target_chapters: int,
+) -> str:
+    characters = blueprint_data.get("characters")
+    relationships = blueprint_data.get("relationships")
+    context = {
+        "title": blueprint_data.get("title"),
+        "genre": blueprint_data.get("genre"),
+        "style": blueprint_data.get("style"),
+        "tone": blueprint_data.get("tone"),
+        "one_sentence_summary": blueprint_data.get("one_sentence_summary"),
+        "full_synopsis": blueprint_data.get("full_synopsis"),
+        "world_setting": blueprint_data.get("world_setting"),
+        "characters": characters[:12] if isinstance(characters, list) else [],
+        "relationships": relationships[:12] if isinstance(relationships, list) else [],
+        "recent_outline": existing_outlines[-3:],
+    }
+    expected_count = end_chapter - start_chapter + 1
+    return f"""
+请根据以下小说蓝图主体，生成第 {start_chapter} 章到第 {end_chapter} 章的章节大纲。
+整部小说总共 {target_chapters} 章，本批必须正好返回 {expected_count} 条。
+
+蓝图主体：
+{json.dumps(context, ensure_ascii=False, separators=(",", ":"))}
+
+硬性要求：
+1. 只返回合法 JSON 对象，格式为 {{"chapter_outline":[{{"chapter_number":{start_chapter},"title":"章节标题","summary":"章节概要"}}]}}。
+2. chapter_number 必须从 {start_chapter} 连续到 {end_chapter}，不能缺章、跳章、重复章。
+3. 每条 summary 要写清本章关键事件、冲突推进、人物变化和结尾钩子。
+4. 不要返回整部蓝图，不要 Markdown，不要解释文字。
+"""
+
+
+async def _generate_outline_batch(
+    llm_service: LLMService,
+    project_id: str,
+    user_id: int,
+    blueprint_data: Dict[str, Any],
+    existing_outlines: List[Dict[str, Any]],
+    start_chapter: int,
+    end_chapter: int,
+    target_chapters: int,
+) -> List[Dict[str, Any]]:
+    prompt = _build_outline_batch_prompt(
+        blueprint_data,
+        existing_outlines,
+        start_chapter,
+        end_chapter,
+        target_chapters,
+    )
+    attempt_errors: List[str] = []
+    for attempt in range(1, BLUEPRINT_GENERATION_MAX_ATTEMPTS + 1):
+        raw = ""
+        try:
+            raw = await llm_service.get_llm_response(
+                system_prompt="你是小说结构策划师。必须严格返回合法 JSON 对象。",
+                conversation_history=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                user_id=user_id,
+                timeout=300.0,
+            )
+            parsed = _parse_llm_json_object(raw)
+            batch_data = {"chapter_outline": parsed.get("chapter_outline")}
+            _normalize_chapter_outline(batch_data)
+            outlines = [
+                item
+                for item in batch_data["chapter_outline"]
+                if start_chapter <= item["chapter_number"] <= end_chapter
+            ]
+            expected_numbers = list(range(start_chapter, end_chapter + 1))
+            actual_numbers = [item["chapter_number"] for item in outlines]
+            if actual_numbers != expected_numbers:
+                raise ValueError(f"章节号应为 {expected_numbers}，实际为 {actual_numbers}")
+            if any(not item["title"].strip() or not item["summary"].strip() for item in outlines):
+                raise ValueError("章节标题或概要为空")
+            return outlines
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            attempt_errors.append(str(exc))
+            logger.warning(
+                "项目 %s 章节大纲 %s-%s 生成第 %s/%s 次失败：%s\n原始响应: %s",
+                project_id,
+                start_chapter,
+                end_chapter,
+                attempt,
+                BLUEPRINT_GENERATION_MAX_ATTEMPTS,
+                exc,
+                raw[:500],
+            )
+
+    raise ValueError(
+        f"第 {start_chapter}-{end_chapter} 章大纲生成失败，最近错误: "
+        f"{attempt_errors[-1] if attempt_errors else '未知错误'}"
+    )
+
+
+async def _complete_chapter_outline(
+    llm_service: LLMService,
+    project_id: str,
+    user_id: int,
+    blueprint_data: Dict[str, Any],
+    target_chapters: int,
+) -> None:
+    completed: List[Dict[str, Any]] = []
+    for start_chapter in range(1, target_chapters + 1, BLUEPRINT_OUTLINE_BATCH_SIZE):
+        end_chapter = min(start_chapter + BLUEPRINT_OUTLINE_BATCH_SIZE - 1, target_chapters)
+        batch = await _generate_outline_batch(
+            llm_service,
+            project_id,
+            user_id,
+            blueprint_data,
+            completed,
+            start_chapter,
+            end_chapter,
+            target_chapters,
+        )
+        completed.extend(batch)
+
+    blueprint_data["chapter_outline"] = completed
+    _validate_complete_chapter_outline(blueprint_data, target_chapters)
 
 
 @router.post("", response_model=NovelProjectSchema, status_code=status.HTTP_201_CREATED)
@@ -258,32 +486,77 @@ async def generate_blueprint(
             detail="无法从历史对话中提取有效内容，请检查对话历史格式或重新进行概念对话"
         )
 
-    system_prompt = _ensure_prompt(await prompt_service.get_prompt("screenwriting"), "screenwriting")
-    blueprint_raw = await llm_service.get_llm_response(
-        system_prompt=system_prompt,
-        conversation_history=formatted_history,
-        temperature=0.3,
-        user_id=current_user.id,
-        timeout=480.0,
-    )
-    blueprint_raw = remove_think_tags(blueprint_raw)
+    target_chapters = _extract_target_chapter_count(formatted_history) or DEFAULT_BLUEPRINT_CHAPTERS
+    constraints = _build_blueprint_constraints(target_chapters)
+    system_prompt = f"{_ensure_prompt(await prompt_service.get_prompt('screenwriting'), 'screenwriting')}\n{constraints}"
+    constrained_history = [
+        *formatted_history,
+        {
+            "role": "user",
+            "content": (
+                f"请现在生成最终小说蓝图主体。{constraints}"
+                "只返回合法 JSON，不要输出 Markdown。"
+            ),
+        },
+    ]
 
-    blueprint_normalized = unwrap_markdown_json(blueprint_raw)
-    blueprint_sanitized = sanitize_json_like_text(blueprint_normalized)
-    try:
-        blueprint_data = json.loads(blueprint_sanitized)
-    except json.JSONDecodeError as exc:
+    blueprint_data: Dict[str, Any] | None = None
+    attempt_errors: List[str] = []
+    for attempt in range(1, BLUEPRINT_GENERATION_MAX_ATTEMPTS + 1):
+        blueprint_raw = ""
+        try:
+            blueprint_raw = await llm_service.get_llm_response(
+                system_prompt=system_prompt,
+                conversation_history=constrained_history,
+                temperature=0.25,
+                user_id=current_user.id,
+                timeout=480.0,
+            )
+            candidate = _parse_llm_json_object(blueprint_raw)
+            candidate["chapter_outline"] = []
+            Blueprint(**candidate)
+            blueprint_data = candidate
+            break
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            message = str(exc)
+            attempt_errors.append(message)
+            logger.warning(
+                "项目 %s 蓝图主体生成第 %s/%s 次失败，准备重试：%s\n原始响应: %s",
+                project_id,
+                attempt,
+                BLUEPRINT_GENERATION_MAX_ATTEMPTS,
+                message,
+                blueprint_raw[:500],
+            )
+
+    if blueprint_data is None:
         logger.error(
-            "项目 %s 蓝图生成 JSON 解析失败: %s\n原始响应: %s\n标准化后: %s\n清洗后: %s",
+            "项目 %s 蓝图生成连续 %s 次失败：%s",
             project_id,
-            exc,
-            blueprint_raw[:500],
-            blueprint_normalized[:500],
-            blueprint_sanitized[:500],
+            BLUEPRINT_GENERATION_MAX_ATTEMPTS,
+            " | ".join(attempt_errors),
         )
         raise HTTPException(
             status_code=500,
-            detail=f"蓝图生成失败，AI 返回的内容格式不正确。请重试或联系管理员。错误详情: {str(exc)}"
+            detail=(
+                f"蓝图主体生成失败，已自动重试 {BLUEPRINT_GENERATION_MAX_ATTEMPTS} 次仍未生成可用蓝图。"
+                f"最近错误: {attempt_errors[-1] if attempt_errors else '未知错误'}"
+            ),
+        )
+
+    try:
+        await _complete_chapter_outline(
+            llm_service,
+            project_id,
+            current_user.id,
+            blueprint_data,
+            target_chapters,
+        )
+    except ValueError as exc:
+        logger.error("项目 %s 完整章节大纲生成失败：%s", project_id, exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"章节大纲生成失败，已自动多次重试。错误详情: {exc}",
         ) from exc
 
     blueprint = Blueprint(**blueprint_data)

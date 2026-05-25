@@ -20,15 +20,15 @@
                   <div class="text-center sm:flex-1 sm:text-left">
                     <DialogTitle as="h3" class="md-headline-small font-semibold leading-7">生成后续大纲</DialogTitle>
                     <div class="mt-2">
-                      <p class="md-body-medium md-on-surface-variant">请输入或选择要生成的后续章节数量。</p>
+                      <p class="md-body-medium md-on-surface-variant">请输入或选择要生成的后续章节数量，最多 50 章。</p>
                     </div>
                   </div>
                 </div>
                 <div class="mt-6">
                   <label for="numChapters" class="md-text-field-label">生成数量</label>
-                  <input type="number" name="numChapters" id="numChapters" v-model.number="numChapters" class="md-text-field-input w-full mt-2" min="1" max="20">
+                  <input type="number" name="numChapters" id="numChapters" v-model.number="numChapters" class="md-text-field-input w-full mt-2" min="1" max="50">
                   <div class="mt-5 flex flex-wrap justify-center gap-3">
-                    <button v-for="count in [1, 2, 5, 10]" :key="count" @click="setNumChapters(count)"
+                    <button v-for="count in [1, 2, 5, 10, 20, 50]" :key="count" @click="setNumChapters(count)"
                       :class="['md-btn md-btn-outlined md-ripple', numChapters === count ? 'm3-count-selected' : '']">
                       {{ count }} 章
                     </button>
@@ -61,12 +61,13 @@ const emit = defineEmits(['close', 'generate'])
 const numChapters = ref(5)
 
 const setNumChapters = (count: number) => {
-  numChapters.value = count
+  numChapters.value = Math.min(Math.max(count, 1), 50)
 }
 
 const handleGenerate = () => {
-  if (numChapters.value > 0) {
-    emit('generate', numChapters.value)
+  const normalizedCount = Math.min(Math.max(Number(numChapters.value) || 1, 1), 50)
+  if (normalizedCount > 0) {
+    emit('generate', normalizedCount)
     emit('close')
   }
 }

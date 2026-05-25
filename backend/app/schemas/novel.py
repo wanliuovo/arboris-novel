@@ -239,8 +239,8 @@ class DeleteChapterRequest(BaseModel):
 
 
 class GenerateOutlineRequest(BaseModel):
-    start_chapter: int
-    num_chapters: int
+    start_chapter: int = Field(..., ge=1, description="续写大纲起始章节")
+    num_chapters: int = Field(..., ge=1, le=50, description="本次最多生成 50 章后续大纲")
 
 
 class BlueprintPatch(BaseModel):
