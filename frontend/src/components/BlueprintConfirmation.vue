@@ -152,7 +152,7 @@ const novelStore = useNovelStore()
 const isGenerating = ref(false)
 const progress = ref(0)
 const timeElapsed = ref(0)
-const maxTime = 180 // 180秒超时
+const maxTime = 600 // 50章分批大纲生成可能需要较长时间
 
 let progressTimer: NodeJS.Timeout | null = null
 let timeoutTimer: NodeJS.Timeout | null = null
@@ -207,7 +207,7 @@ const generateBlueprint = async () => {
     }
   }, 100)
 
-  // 60秒超时
+  // 长任务超时提示。后端和 Nginx 当前按 600 秒长请求处理。
   timeoutTimer = setTimeout(() => {
     clearTimers()
     isGenerating.value = false
