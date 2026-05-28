@@ -116,6 +116,7 @@
             @click="enterProject(project)"
             @detail="viewProjectDetail"
             @continue="enterProject"
+            @ask-ai="openNovelQA"
             @delete="handleDeleteProject"
           />
 
@@ -226,6 +227,13 @@
         </transition>
       </div>
     </transition>
+
+    <NovelQAModal
+      :show="showQAModal"
+      :project-id="qaProject?.id || null"
+      :project-title="qaProject?.title || ''"
+      @close="showQAModal = false"
+    />
   </div>
 </template>
 
@@ -235,6 +243,7 @@ import { useRouter } from 'vue-router'
 import { useNovelStore } from '@/stores/novel'
 import { useAuthStore } from '@/stores/auth'
 import ProjectCard from '@/components/ProjectCard.vue'
+import NovelQAModal from '@/components/NovelQAModal.vue'
 import type { NovelProject, NovelProjectSummary } from '@/api/novel'
 import { NovelAPI } from '@/api/novel'
 
@@ -251,6 +260,8 @@ const showDeleteDialog = ref(false)
 const projectToDelete = ref<NovelProjectSummary | null>(null)
 const isDeleting = ref(false)
 const deleteMessage = ref<{type: 'success' | 'error', text: string} | null>(null)
+const showQAModal = ref(false)
+const qaProject = ref<NovelProjectSummary | null>(null)
 
 const goBack = () => {
   router.push('/')
@@ -270,6 +281,11 @@ const enterProject = (project: NovelProjectSummary) => {
   } else {
     router.push(`/novel/${project.id}`)
   }
+}
+
+const openNovelQA = (project: NovelProjectSummary) => {
+  qaProject.value = project
+  showQAModal.value = true
 }
 
 const loadProjects = async () => {

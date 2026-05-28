@@ -75,10 +75,10 @@
     </div>
 
     <!-- Action Buttons -->
-    <div class="flex gap-2 opacity-100 translate-y-0 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 transform sm:translate-y-2 sm:group-hover:translate-y-0">
+    <div class="grid grid-cols-2 gap-2 opacity-100 translate-y-0 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 transform sm:translate-y-2 sm:group-hover:translate-y-0">
       <button
         @click.stop="$emit('detail', project.id)"
-        class="md-btn md-btn-tonal md-ripple flex-1"
+        class="md-btn md-btn-tonal md-ripple justify-center"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -87,8 +87,18 @@
         查看
       </button>
       <button
+        @click.stop="$emit('ask-ai', project)"
+        class="md-btn md-btn-outlined md-ripple justify-center"
+      >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 13h5" />
+        </svg>
+        问答
+      </button>
+      <button
         @click.stop="handleDelete"
-        class="md-icon-btn md-ripple"
+        class="md-icon-btn md-ripple justify-self-start"
         style="color: var(--md-error);"
         title="删除项目"
       >
@@ -98,7 +108,7 @@
       </button>
       <button
         @click.stop="$emit('continue', project)"
-        class="md-btn md-btn-filled md-ripple flex-1"
+        class="md-btn md-btn-filled md-ripple justify-center"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -124,6 +134,7 @@ const emit = defineEmits<{
   (e: 'click', id: string): void
   (e: 'detail', id: string): void
   (e: 'continue', project: NovelProjectSummary): void
+  (e: 'ask-ai', project: NovelProjectSummary): void
   (e: 'delete', id: string): void
 }>()
 

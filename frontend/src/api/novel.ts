@@ -124,6 +124,10 @@ export interface BlueprintGenerationResponse {
   ai_message: string
 }
 
+export interface NovelQAResponse {
+  answer: string
+}
+
 export interface UIControl {
   type: 'single_choice' | 'text_input'
   options?: Array<{ id: string; label: string }>
@@ -249,6 +253,13 @@ export class NovelAPI {
   static async generateBlueprint(projectId: string): Promise<BlueprintGenerationResponse> {
     return request(`${NOVELS_BASE}/${projectId}/blueprint/generate`, {
       method: 'POST'
+    })
+  }
+
+  static async askNovel(projectId: string, question: string): Promise<NovelQAResponse> {
+    return request(`${NOVELS_BASE}/${projectId}/qa`, {
+      method: 'POST',
+      body: JSON.stringify({ question })
     })
   }
 

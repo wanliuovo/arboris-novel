@@ -24,6 +24,13 @@
 
         <!-- 右侧：操作按钮 -->
         <div class="flex items-center gap-1 sm:gap-2">
+          <button @click="$emit('askAi')" class="md-btn md-btn-tonal md-ripple flex items-center gap-2 px-2 sm:px-3">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 13h5" />
+            </svg>
+            <span class="hidden md:inline">AI 问答</span>
+          </button>
           <button @click="$emit('viewProjectDetail')" class="md-btn md-btn-text md-ripple flex items-center gap-2 px-2 sm:px-3">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"></path>
@@ -74,5 +81,5 @@ interface Props {
 
 defineProps<Props>()
 
-defineEmits(['goBack', 'viewProjectDetail', 'toggleSidebar'])
+defineEmits(['goBack', 'viewProjectDetail', 'toggleSidebar', 'askAi'])
 </script>

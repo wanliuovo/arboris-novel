@@ -16,6 +16,8 @@ from ...schemas.novel import (
     Chapter as ChapterSchema,
     ConverseRequest,
     ConverseResponse,
+    NovelQARequest,
+    NovelQAResponse,
     NovelProject as NovelProjectSchema,
     NovelProjectSummary,
     NovelSectionResponse,
@@ -174,6 +176,60 @@ def _validate_complete_chapter_outline(blueprint_data: Dict[str, Any], target_ch
     actual_numbers = [item.get("chapter_number") for item in outlines if isinstance(item, dict)]
     if actual_numbers != expected_numbers:
         raise ValueError("chapter_outline 章节号不连续或不是从 1 开始")
+
+
+def _truncate_text(value: Any, limit: int) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}..."
+
+
+def _build_novel_qa_context(project: NovelProjectSchema) -> str:
+    blueprint = project.blueprint
+    if not blueprint:
+        return json.dumps(
+            {
+                "title": project.title,
+                "initial_prompt": project.initial_prompt,
+                "note": "这个项目还没有完整蓝图。",
+            },
+            ensure_ascii=False,
+        )
+
+    chapter_outline = [
+        {
+            "chapter_number": item.chapter_number,
+            "title": item.title,
+            "summary": _truncate_text(item.summary, 260),
+        }
+        for item in (blueprint.chapter_outline or [])[:80]
+    ]
+    completed_chapters = [
+        {
+            "chapter_number": chapter.chapter_number,
+            "title": chapter.title,
+            "summary": _truncate_text(chapter.real_summary or chapter.summary, 300),
+        }
+        for chapter in (project.chapters or [])
+        if chapter.content
+    ][:40]
+
+    context = {
+        "title": project.title,
+        "genre": blueprint.genre,
+        "target_audience": blueprint.target_audience,
+        "style": blueprint.style,
+        "tone": blueprint.tone,
+        "one_sentence_summary": blueprint.one_sentence_summary,
+        "full_synopsis": _truncate_text(blueprint.full_synopsis, 1800),
+        "world_setting": blueprint.world_setting,
+        "characters": blueprint.characters[:30],
+        "relationships": [item.model_dump() for item in blueprint.relationships[:40]],
+        "chapter_outline": chapter_outline,
+        "completed_chapters": completed_chapters,
+    }
+    return json.dumps(context, ensure_ascii=False, separators=(",", ":"))
 
 
 def _parse_llm_json_object(raw: str) -> Dict[str, Any]:
@@ -371,6 +427,42 @@ async def get_novel(
     novel_service = NovelService(session)
     logger.info("用户 %s 查询项目 %s", current_user.id, project_id)
     return await novel_service.get_project_schema(project_id, current_user.id)
+
+
+@router.post("/{project_id}/qa", response_model=NovelQAResponse)
+async def ask_novel_question(
+    project_id: str,
+    request: NovelQARequest,
+    session: AsyncSession = Depends(get_session),
+    current_user: UserInDB = Depends(get_current_user),
+) -> NovelQAResponse:
+    novel_service = NovelService(session)
+    llm_service = LLMService(session)
+
+    project = await novel_service.get_project_schema(project_id, current_user.id)
+    context = _build_novel_qa_context(project)
+    system_prompt = """
+你是当前小说项目的 AI 顾问。你只能根据提供的小说上下文回答问题。
+回答要具体、清楚、有条理，优先引用已有蓝图、世界观、人物关系、章节大纲和已完成章节摘要。
+如果上下文里没有答案，请直接说明“当前资料里还没有明确设定”，并给出可补充的方向。
+不要编造已经发生的剧情；如果是创作建议，请明确标注为“建议”。
+"""
+    user_prompt = f"""
+[小说上下文]
+{context}
+
+[用户问题]
+{request.question.strip()}
+"""
+    answer = await llm_service.get_llm_response(
+        system_prompt=system_prompt,
+        conversation_history=[{"role": "user", "content": user_prompt}],
+        temperature=0.35,
+        user_id=current_user.id,
+        timeout=180.0,
+        response_format=None,
+    )
+    return NovelQAResponse(answer=remove_think_tags(answer).strip())
 
 
 @router.get("/{project_id}/sections/{section}", response_model=NovelSectionResponse)

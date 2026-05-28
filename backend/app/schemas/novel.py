@@ -112,6 +112,14 @@ class BlueprintGenerationResponse(BaseModel):
     ai_message: str
 
 
+class NovelQARequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=1000, description="用户关于当前小说的问题")
+
+
+class NovelQAResponse(BaseModel):
+    answer: str
+
+
 class ChapterGenerationResponse(BaseModel):
     ai_message: str
     chapter_versions: List[Dict[str, Any]]

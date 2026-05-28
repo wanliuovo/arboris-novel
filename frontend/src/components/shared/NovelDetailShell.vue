@@ -28,6 +28,18 @@
         <!-- Trailing: Actions -->
         <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <button
+            v-if="!isAdmin"
+            class="md-btn md-btn-tonal md-ripple px-3 sm:px-6"
+            @click="showQAModal = true"
+          >
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 9h8M8 13h5" />
+            </svg>
+            <span class="hidden sm:inline">AI 问答</span>
+            <span class="sm:hidden">问答</span>
+          </button>
+          <button
             class="md-btn md-btn-outlined md-ripple px-3 sm:px-6"
             @click="goBack"
           >
@@ -171,6 +183,14 @@
       @save="handleSave"
     />
 
+    <NovelQAModal
+      v-if="!isAdmin"
+      :show="showQAModal"
+      :project-id="projectId"
+      :project-title="overviewMeta.title"
+      @close="showQAModal = false"
+    />
+
     <!-- Material 3 Add Chapter Modal -->
     <transition
       enter-active-class="md-scale-enter-active"
@@ -241,6 +261,7 @@ import { AdminAPI } from '@/api/admin'
 import type { NovelProject, NovelSectionResponse, NovelSectionType, AllSectionType } from '@/api/novel'
 import { formatDateTime } from '@/utils/date'
 import BlueprintEditModal from '@/components/BlueprintEditModal.vue'
+import NovelQAModal from '@/components/NovelQAModal.vue'
 import OverviewSection from '@/components/novel-detail/OverviewSection.vue'
 import WorldSettingSection from '@/components/novel-detail/WorldSettingSection.vue'
 import CharactersSection from '@/components/novel-detail/CharactersSection.vue'
@@ -361,6 +382,7 @@ const overviewMeta = reactive<{ title: string; updated_at: string | null }>({
 })
 
 const activeSection = ref<SectionKey>('overview')
+const showQAModal = ref(false)
 
 // Modal state (user mode only)
 const isModalOpen = ref(false)

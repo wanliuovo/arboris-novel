@@ -9,6 +9,7 @@
       @go-back="goBack"
       @view-project-detail="viewProjectDetail"
       @toggle-sidebar="toggleSidebar"
+      @ask-ai="showQAModal = true"
     />
 
     <!-- 主要内容区域 -->
@@ -111,6 +112,12 @@
       @close="showAutoGenerateModal = false"
       @generate="autoGenerateChapters"
     />
+    <NovelQAModal
+      :show="showQAModal"
+      :project-id="project?.id || null"
+      :project-title="project?.title || ''"
+      @close="showQAModal = false"
+    />
   </div>
 </template>
 
@@ -129,6 +136,7 @@ import WDEvaluationDetailModal from '@/components/writing-desk/WDEvaluationDetai
 import WDEditChapterModal from '@/components/writing-desk/WDEditChapterModal.vue'
 import WDGenerateOutlineModal from '@/components/writing-desk/WDGenerateOutlineModal.vue'
 import WDAutoGenerateModal from '@/components/writing-desk/WDAutoGenerateModal.vue'
+import NovelQAModal from '@/components/NovelQAModal.vue'
 
 interface Props {
   id: string
@@ -153,6 +161,7 @@ const isGeneratingOutline = ref(false)
 const showGenerateOutlineModal = ref(false)
 const isAutoGenerating = ref(false)
 const showAutoGenerateModal = ref(false)
+const showQAModal = ref(false)
 const autoGenerateJobId = ref<string | null>(null)
 const autoGeneratePollingTimer = ref<number | null>(null)
 const notifiedAutoGenerateJobs = ref<string[]>([])
